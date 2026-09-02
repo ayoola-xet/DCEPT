@@ -38,6 +38,17 @@ export async function POST(request: NextRequest) {
     UNION ALL SELECT id FROM targets WHERE id = ${parsed.data.candidateTargetId} AND organization_id = ${session.organizationId}
   `;
   if (resources.length !== 3) return NextResponse.json({ error: "Scenario or target does not exist in this organization." }, { status: 404 });
+  await sql`INSERT INTO organization_quotas (organization_id) VALUES (${session.organizationId}) ON CONFLICT (organization_id) DO NOTHING`;
+  const usage = await sql`
+    SELECT q.maximum_concurrent_runs, COUNT(r.id)::integer AS active_runs
+    FROM organization_quotas q
+    LEFT JOIN runs r ON r.organization_id = q.organization_id AND r.status IN ('queued', 'running')
+    WHERE q.organization_id = ${session.organizationId}
+    GROUP BY q.maximum_concurrent_runs
+  `;
+  if (Number(usage[0]?.active_runs ?? 0) >= Number(usage[0]?.maximum_concurrent_runs ?? 0)) {
+    return NextResponse.json({ error: "The organization has reached its concurrent run limit." }, { status: 429 });
+  }
   const id = newId();
   await sql`
     INSERT INTO runs (id, organization_id, scenario_id, baseline_target_id, candidate_target_id, status)

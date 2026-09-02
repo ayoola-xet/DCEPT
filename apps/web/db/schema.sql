@@ -62,5 +62,25 @@ CREATE TABLE IF NOT EXISTS audit_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS api_tokens (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  token_prefix TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  scopes TEXT[] NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ,
+  revoked_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS organization_quotas (
+  organization_id TEXT PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+  maximum_concurrent_runs INTEGER NOT NULL DEFAULT 2 CHECK (maximum_concurrent_runs > 0),
+  monthly_case_limit INTEGER NOT NULL DEFAULT 10000 CHECK (monthly_case_limit > 0),
+  artifact_storage_limit_bytes BIGINT NOT NULL DEFAULT 1073741824 CHECK (artifact_storage_limit_bytes > 0)
+);
+
 CREATE INDEX IF NOT EXISTS runs_organization_created_at_idx ON runs (organization_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS audit_events_organization_created_at_idx ON audit_events (organization_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS api_tokens_organization_created_at_idx ON api_tokens (organization_id, created_at DESC);
