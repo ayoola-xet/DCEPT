@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS runs (
   scenario_id TEXT NOT NULL REFERENCES scenarios(id) ON DELETE RESTRICT,
   baseline_target_id TEXT NOT NULL REFERENCES targets(id) ON DELETE RESTRICT,
   candidate_target_id TEXT NOT NULL REFERENCES targets(id) ON DELETE RESTRICT,
+  case_count INTEGER NOT NULL DEFAULT 1 CHECK (case_count > 0),
   status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'completed', 'failed', 'canceled')),
   report_json JSONB,
   error_message TEXT,
