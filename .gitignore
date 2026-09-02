@@ -1,6 +1,7 @@
 /target
 node_modules
 .next
+.swc
 *.tsbuildinfo
 .env
 .env.local

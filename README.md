@@ -144,3 +144,18 @@ An RPC target can change state when a scenario uses a write method. Use a dedica
 cargo fmt --check
 cargo test
 ```
+
+## Hosted service
+
+`apps/web` contains the hosted dashboard and REST API. It uses Sign-In with Ethereum (SIWE) for wallet authentication, Neon PostgreSQL for tenant data, and Vercel Workflow for durable runs.
+
+```sh
+cd apps/web
+cp .env.example .env.local
+# Set DATABASE_URL, ENCRYPTION_KEY, and SESSION_SECRET.
+npm install
+psql "$DATABASE_URL" -f db/schema.sql
+npm run build
+```
+
+Run `scripts/build-wasm.sh` when you update the Rust comparison core. The command creates a Node-compatible WebAssembly package at `apps/web/lib/wasm`.
