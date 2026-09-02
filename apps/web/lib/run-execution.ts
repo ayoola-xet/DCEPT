@@ -1,7 +1,7 @@
 import { decrypt } from "./crypto";
 import { compareJson } from "./compare";
 import { database } from "./db";
-import { parseHostedScenario, type HostedAction } from "./hosted-scenario";
+import { parseHostedScenario, type HostedAction, type HostedScenario } from "./hosted-scenario";
 
 type StoredRun = {
   status: string;
@@ -16,15 +16,17 @@ type StoredRun = {
 
 type Target = { endpoint: string; headers: Record<string, string> };
 type Operation = { response: unknown | null; error: string | null; duration_ms: number };
-export type RunReport = { schema_version: 1; scenario_name: string; actions: ActionReport[]; has_findings: boolean };
+export type RunReport = { schema_version: 1; scenario_name: string; actions: ActionReport[]; fuzz?: { seed: number; cases: FuzzCaseReport[] }; has_findings: boolean };
 type ActionReport = { id: string; baseline: Operation; candidate: Operation; diffs: unknown[] };
+type FuzzCaseReport = { index: number; mutations: unknown[]; actions: ActionReport[]; has_findings: boolean };
 
 export async function prepareRun(runId: string): Promise<{ actionCount: number; canceled: boolean }> {
   "use step";
   const run = await loadRun(runId);
   if (run.status === "canceled") return { actionCount: 0, canceled: true };
   await database()`UPDATE runs SET status = 'running', error_message = NULL WHERE id = ${runId} AND status = 'queued'`;
-  return { actionCount: parseHostedScenario(run.yaml_source).actions.length, canceled: false };
+  const scenario = parseHostedScenario(run.yaml_source);
+  return { actionCount: scenario.actions.length * (scenario.fuzz?.cases ?? 1), canceled: false };
 }
 
 export async function executeBatch(runId: string, startIndex: number): Promise<{ nextIndex: number; done: boolean; canceled: boolean }> {
@@ -34,15 +36,26 @@ export async function executeBatch(runId: string, startIndex: number): Promise<{
   const scenario = parseHostedScenario(run.yaml_source);
   const baseline = targetFrom(run, "baseline");
   const candidate = targetFrom(run, "candidate");
-  const report = run.report_json ?? { schema_version: 1, scenario_name: scenario.name, actions: [], has_findings: false };
-  const end = Math.min(startIndex + 5, scenario.actions.length);
+  const fuzzCases = generatedCases(scenario);
+  const actions = fuzzCases[0].scenario.actions;
+  const report = run.report_json ?? initialReport(scenario, fuzzCases);
+  const end = Math.min(startIndex + 5, actions.length * fuzzCases.length);
 
   for (let index = startIndex; index < end; index += 1) {
-    report.actions[index] = await executeAction(scenario.actions[index], baseline, candidate);
+    const caseIndex = Math.floor(index / actions.length);
+    const actionIndex = index % actions.length;
+    const actionReport = await executeAction(fuzzCases[caseIndex].scenario.actions[actionIndex], baseline, candidate);
+    if (report.fuzz) {
+      const fuzzCase = report.fuzz.cases[caseIndex];
+      fuzzCase.actions[actionIndex] = actionReport;
+      fuzzCase.has_findings = fuzzCase.actions.some((action) => action.diffs.length > 0);
+    } else {
+      report.actions[actionIndex] = actionReport;
+    }
   }
-  report.has_findings = report.actions.some((action) => action.diffs.length > 0);
+  report.has_findings = report.fuzz ? report.fuzz.cases.some((fuzzCase) => fuzzCase.has_findings) : report.actions.some((action) => action.diffs.length > 0);
   await database()`UPDATE runs SET report_json = ${JSON.stringify(report)}::jsonb WHERE id = ${runId} AND status = 'running'`;
-  return { nextIndex: end, done: end === scenario.actions.length, canceled: false };
+  return { nextIndex: end, done: end === actions.length * fuzzCases.length, canceled: false };
 }
 
 export async function completeRun(runId: string): Promise<void> {
@@ -121,4 +134,52 @@ async function executeOperation(action: HostedAction, target: Target, side: "bas
 
 function tryJson(value: string): unknown {
   try { return JSON.parse(value); } catch { return value; }
+}
+
+type GeneratedFuzzCase = { scenario: HostedScenario; mutations: unknown[] };
+
+function generatedCases(scenario: HostedScenario): GeneratedFuzzCase[] {
+  if (!scenario.fuzz) return [{ scenario, mutations: [] }];
+  let state = scenario.fuzz.seed;
+  return Array.from({ length: scenario.fuzz.cases }, () => {
+    const copy = structuredClone(scenario);
+    const mutations = scenario.fuzz!.mutations.map((mutation) => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      const value = structuredClone(mutation.values[state % mutation.values.length]);
+      const action = copy.actions.find((candidate) => candidate.id === mutation.action);
+      if (!action || action.kind !== "rpc") throw new Error(`Fuzz action '${mutation.action}' is invalid.`);
+      const params = mutation.scope === "baseline" ? action.baseline_params ?? (action.baseline_params = structuredClone(action.params))
+        : mutation.scope === "candidate" ? action.candidate_params ?? (action.candidate_params = structuredClone(action.params)) : action.params;
+      replacePointer(params, mutation.path, value);
+      return { action: mutation.action, scope: mutation.scope, path: mutation.path, value };
+    });
+    copy.fuzz = undefined;
+    return { scenario: copy, mutations };
+  });
+}
+
+function initialReport(scenario: HostedScenario, cases: GeneratedFuzzCase[]): RunReport {
+  if (!scenario.fuzz) return { schema_version: 1, scenario_name: scenario.name, actions: [], has_findings: false };
+  return { schema_version: 1, scenario_name: scenario.name, actions: [], has_findings: false, fuzz: {
+    seed: scenario.fuzz.seed,
+    cases: cases.map((fuzzCase, index) => ({ index, mutations: fuzzCase.mutations, actions: [], has_findings: false })),
+  } };
+}
+
+function replacePointer(root: unknown, pointer: string, value: unknown) {
+  const tokens = pointer.slice(1).split("/").map((token) => token.replaceAll("~1", "/").replaceAll("~0", "~"));
+  const last = tokens.pop();
+  if (!last) throw new Error("Fuzz mutation cannot replace the root params value.");
+  let current: unknown = root;
+  for (const token of tokens) {
+    if (Array.isArray(current)) current = current[Number(token)];
+    else if (typeof current === "object" && current !== null) current = (current as Record<string, unknown>)[token];
+    else throw new Error(`Fuzz path '${pointer}' does not exist.`);
+  }
+  if (Array.isArray(current)) {
+    const index = Number(last); if (!Number.isInteger(index) || index < 0 || index >= current.length) throw new Error(`Fuzz path '${pointer}' does not exist.`);
+    current[index] = value;
+  } else if (typeof current === "object" && current !== null && last in current) {
+    (current as Record<string, unknown>)[last] = value;
+  } else throw new Error(`Fuzz path '${pointer}' does not exist.`);
 }

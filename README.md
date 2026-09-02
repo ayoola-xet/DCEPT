@@ -149,6 +149,8 @@ cargo test
 
 `apps/web` contains the hosted dashboard and REST API. It uses Sign-In with Ethereum (SIWE) for wallet authentication, Neon PostgreSQL for tenant data, and Vercel Workflow for durable runs.
 
+Hosted scenarios also support the same `fuzz` block as the CLI. The workflow records the seed, each mutation, and each case report.
+
 ```sh
 cd apps/web
 cp .env.example .env.local
