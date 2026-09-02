@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 
 use crate::{
     compare_values,
-    scenario::{Action, HttpAction, RpcAction, Scenario},
+    scenario::{Action, FuzzCase, HttpAction, RpcAction, Scenario},
 };
 
 #[derive(Debug, Clone)]
@@ -43,6 +43,30 @@ pub struct RunReport {
     pub candidate_target: String,
     pub actions: Vec<ActionReport>,
     pub has_findings: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FuzzReport {
+    pub schema_version: u16,
+    pub scenario_name: String,
+    pub seed: u64,
+    pub cases: Vec<FuzzCaseReport>,
+    pub finding_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FuzzCaseReport {
+    pub index: u32,
+    pub mutations: Vec<AppliedMutationReport>,
+    pub report: RunReport,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppliedMutationReport {
+    pub action: String,
+    pub scope: crate::scenario::TargetScope,
+    pub path: String,
+    pub value: Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,6 +147,95 @@ pub async fn execute_scenario(
         actions,
         has_findings,
     }
+}
+
+/// Run reproducible generated cases. Cases run in order so that every finding has
+/// an unambiguous target history. Use isolated targets for write methods.
+pub async fn execute_fuzz(
+    scenario: &Scenario,
+    targets: &TargetPair,
+    options: &RunOptions,
+    cases: u32,
+    seed: Option<u64>,
+) -> Result<FuzzReport, crate::scenario::ScenarioError> {
+    let configured_seed = scenario
+        .fuzz
+        .as_ref()
+        .and_then(|config| config.seed)
+        .unwrap_or(0);
+    let seed = seed.unwrap_or(configured_seed);
+    let generated = scenario.fuzz_cases(cases, seed)?;
+    let mut reports = Vec::with_capacity(generated.len());
+    for FuzzCase {
+        index,
+        scenario,
+        mutations,
+    } in generated
+    {
+        let report = execute_scenario(&scenario, targets, options).await;
+        let mutations = mutations
+            .into_iter()
+            .map(|mutation| AppliedMutationReport {
+                action: mutation.action,
+                scope: mutation.scope,
+                path: mutation.path,
+                value: mutation.value,
+            })
+            .collect();
+        reports.push(FuzzCaseReport {
+            index,
+            mutations,
+            report,
+        });
+    }
+    let finding_count = reports
+        .iter()
+        .filter(|case| case.report.has_findings)
+        .count();
+    Ok(FuzzReport {
+        schema_version: 1,
+        scenario_name: scenario.name.clone(),
+        seed,
+        cases: reports,
+        finding_count,
+    })
+}
+
+/// Remove unrelated actions from a failing scenario. The target pair must be
+/// disposable when actions can change state.
+pub async fn minimize_actions(
+    scenario: &Scenario,
+    targets: &TargetPair,
+    options: &RunOptions,
+) -> Result<Scenario, MinimizationError> {
+    if !execute_scenario(scenario, targets, options)
+        .await
+        .has_findings
+    {
+        return Err(MinimizationError::NoFinding);
+    }
+    let mut minimized = scenario.clone();
+    minimized.fuzz = None;
+    let mut index = 0;
+    while index < minimized.actions.len() && minimized.actions.len() > 1 {
+        let mut trial = minimized.clone();
+        trial.actions.remove(index);
+        if execute_scenario(&trial, targets, options)
+            .await
+            .has_findings
+        {
+            minimized = trial;
+        } else {
+            index += 1;
+        }
+    }
+    Ok(minimized)
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum MinimizationError {
+    #[error("the input scenario has no finding on these targets")]
+    NoFinding,
 }
 
 #[derive(Clone, Copy)]

@@ -97,6 +97,41 @@ glamprobe run scenario.yaml \
 
 The CLI prints the report to standard output. It exits with `0` when there are no findings, `2` when it finds differences, and `1` for a command error.
 
+## Fuzzing and minimization
+
+Add a `fuzz` block to vary values inside an RPC action's `params` field. GlamProbe uses a fixed seed, so it creates the same cases again when you use the same seed.
+
+```yaml
+fuzz:
+  cases: 10
+  seed: 42
+  mutations:
+    - action: estimate-transfer
+      path: /0/value
+      values: ["0x0", "0x1", "0x5208"]
+```
+
+Run the configured cases.
+
+```sh
+glamprobe fuzz examples/fuzz-estimate-gas.yaml \
+  --baseline-url https://baseline.example/rpc \
+  --candidate-url https://candidate.example/rpc
+```
+
+Use `--cases` and `--seed` to override the YAML values. The fuzz report records every applied mutation.
+
+When a scenario has a finding, reduce it to the smallest action set that still fails.
+
+```sh
+glamprobe minimize scenario.yaml \
+  --baseline-url https://baseline.example/rpc \
+  --candidate-url https://candidate.example/rpc \
+  --output reproducer.yaml
+```
+
+The minimizer reruns actions. Use fresh, disposable targets when the scenario can change target state.
+
 ## Transaction safety
 
 GlamProbe does not store private keys and does not sign transactions. It can submit a pre-signed raw transaction when a scenario uses `eth_sendRawTransaction`.

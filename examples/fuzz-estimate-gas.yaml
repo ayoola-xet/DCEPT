@@ -1,0 +1,18 @@
+version: 1
+name: fuzz-estimate-gas
+description: Compare estimates for a fixed transfer with several values.
+actions:
+  - kind: rpc
+    id: estimate-transfer
+    method: eth_estimateGas
+    params:
+      - from: "0x0000000000000000000000000000000000000001"
+        to: "0x0000000000000000000000000000000000000002"
+        value: "0x1"
+fuzz:
+  cases: 10
+  seed: 42
+  mutations:
+    - action: estimate-transfer
+      path: /0/value
+      values: ["0x0", "0x1", "0x5208", "0xde0b6b3a7640000"]
