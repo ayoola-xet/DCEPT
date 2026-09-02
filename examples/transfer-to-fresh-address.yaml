@@ -1,0 +1,15 @@
+version: 1
+name: transfer-to-fresh-address
+description: Compare gas estimation for a one-wei ETH transfer to a fresh address.
+actions:
+  - kind: rpc
+    id: estimate-transfer
+    method: eth_estimateGas
+    params:
+      - from: "0x0000000000000000000000000000000000000001"
+        to: "0x0000000000000000000000000000000000000002"
+        value: "0x1"
+    comparison:
+      numeric_tolerances:
+        - path: /result
+          absolute: 0
