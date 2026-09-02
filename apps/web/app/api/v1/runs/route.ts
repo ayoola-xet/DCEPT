@@ -2,16 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { start } from "workflow/api";
 import { z } from "zod";
 
-import { badRequest, isResponse, requireSession } from "@/lib/api";
-import { requireRole } from "@/lib/authorization";
+import { badRequest, hasScope, isResponse, requireSession } from "@/lib/api";
+import { requireAccess } from "@/lib/authorization";
 import { database, newId } from "@/lib/db";
 import { runScenarioWorkflow } from "@/workflows/run-scenario";
 
 const runSchema = z.object({ scenarioId: z.string().uuid(), baselineTargetId: z.string().uuid(), candidateTargetId: z.string().uuid() });
 
-export async function GET() {
-  const session = await requireSession();
+export async function GET(request: NextRequest) {
+  const session = await requireSession(request);
   if (isResponse(session)) return session;
+  if (!hasScope(session, "runs:read")) return NextResponse.json({ error: "API token does not have the required scope." }, { status: 403 });
   const runs = await database()`
     SELECT r.id, r.status, r.created_at, r.completed_at, r.error_message, s.name AS scenario_name,
       COALESCE(jsonb_array_length(r.report_json->'actions'), 0) AS action_count
@@ -23,9 +24,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await requireSession();
+  const session = await requireSession(request);
   if (isResponse(session)) return session;
-  const denied = await requireRole(session, ["owner", "admin", "member"]);
+  const denied = await requireAccess(session, "runs:write", ["owner", "admin", "member"]);
   if (denied) return denied;
   const parsed = runSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return badRequest("Scenario, baseline target, and candidate target IDs are required.");

@@ -2,24 +2,25 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { badRequest, isResponse, requireSession } from "@/lib/api";
-import { requireRole } from "@/lib/authorization";
+import { badRequest, hasScope, isResponse, requireSession } from "@/lib/api";
+import { requireAccess } from "@/lib/authorization";
 import { database, newId } from "@/lib/db";
 import { parseHostedScenario } from "@/lib/hosted-scenario";
 
 const scenarioSchema = z.object({ name: z.string().trim().min(1).max(200), yamlSource: z.string().min(1).max(1_000_000) });
 
-export async function GET() {
-  const session = await requireSession();
+export async function GET(request: NextRequest) {
+  const session = await requireSession(request);
   if (isResponse(session)) return session;
+  if (!hasScope(session, "scenarios:read")) return NextResponse.json({ error: "API token does not have the required scope." }, { status: 403 });
   const scenarios = await database()`SELECT id, name, checksum, created_at, updated_at FROM scenarios WHERE organization_id = ${session.organizationId} ORDER BY updated_at DESC`;
   return NextResponse.json({ scenarios });
 }
 
 export async function POST(request: NextRequest) {
-  const session = await requireSession();
+  const session = await requireSession(request);
   if (isResponse(session)) return session;
-  const denied = await requireRole(session, ["owner", "admin", "member"]);
+  const denied = await requireAccess(session, "scenarios:write", ["owner", "admin", "member"]);
   if (denied) return denied;
   const parsed = scenarioSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return badRequest("Scenario name and YAML source are required.");

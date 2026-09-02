@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { isResponse, requireSession } from "@/lib/api";
-import { requireRole } from "@/lib/authorization";
+import { hasScope, isResponse, requireSession } from "@/lib/api";
+import { requireAccess } from "@/lib/authorization";
 import { database } from "@/lib/db";
 
 type Context = { params: Promise<{ id: string }> };
 
 export async function GET(_: NextRequest, { params }: Context) {
-  const session = await requireSession();
+  const session = await requireSession(_);
   if (isResponse(session)) return session;
+  if (!hasScope(session, "runs:read")) return NextResponse.json({ error: "API token does not have the required scope." }, { status: 403 });
   const { id } = await params;
   const rows = await database()`
     SELECT id, status, created_at, completed_at, error_message, report_json FROM runs
@@ -19,9 +20,9 @@ export async function GET(_: NextRequest, { params }: Context) {
 }
 
 export async function DELETE(_: NextRequest, { params }: Context) {
-  const session = await requireSession();
+  const session = await requireSession(_);
   if (isResponse(session)) return session;
-  const denied = await requireRole(session, ["owner", "admin", "member"]);
+  const denied = await requireAccess(session, "runs:write", ["owner", "admin", "member"]);
   if (denied) return denied;
   const { id } = await params;
   const result = await database()`

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { badRequest, isResponse, requireSession } from "@/lib/api";
-import { requireRole } from "@/lib/authorization";
+import { badRequest, hasScope, isResponse, requireSession } from "@/lib/api";
+import { requireAccess } from "@/lib/authorization";
 import { encrypt } from "@/lib/crypto";
 import { database, newId } from "@/lib/db";
 
@@ -12,9 +12,10 @@ const targetSchema = z.object({
   headers: z.record(z.string().max(200), z.string().max(4_000)).default({}),
 });
 
-export async function GET() {
-  const session = await requireSession();
+export async function GET(request: NextRequest) {
+  const session = await requireSession(request);
   if (isResponse(session)) return session;
+  if (!hasScope(session, "targets:read")) return NextResponse.json({ error: "API token does not have the required scope." }, { status: 403 });
   const sql = database();
   const targets = await sql`
     SELECT id, name, created_at FROM targets WHERE organization_id = ${session.organizationId} ORDER BY created_at DESC
@@ -23,9 +24,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await requireSession();
+  const session = await requireSession(request);
   if (isResponse(session)) return session;
-  const denied = await requireRole(session, ["owner", "admin", "member"]);
+  const denied = await requireAccess(session, "targets:write", ["owner", "admin", "member"]);
   if (denied) return denied;
   const parsed = targetSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return badRequest("Target name, HTTPS endpoint URL, and string headers are required.");
