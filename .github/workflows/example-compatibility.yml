@@ -1,0 +1,25 @@
+name: Example compatibility check
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_url:
+        required: true
+        type: string
+      candidate_url:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./actions/glamprobe
+        with:
+          scenario: examples/transfer-to-fresh-address.yaml
+          baseline-url: ${{ inputs.baseline_url }}
+          candidate-url: ${{ inputs.candidate_url }}

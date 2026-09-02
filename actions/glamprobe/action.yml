@@ -1,0 +1,56 @@
+name: GlamProbe compatibility check
+description: Run one GlamProbe YAML scenario in GitHub Actions and annotate findings.
+inputs:
+  scenario:
+    description: Path to the YAML scenario.
+    required: true
+  baseline-url:
+    description: Baseline JSON-RPC endpoint URL.
+    required: true
+  candidate-url:
+    description: Candidate JSON-RPC endpoint URL.
+    required: true
+  baseline-headers:
+    description: Optional newline-separated NAME:VALUE headers.
+    required: false
+    default: ""
+  candidate-headers:
+    description: Optional newline-separated NAME:VALUE headers.
+    required: false
+    default: ""
+  report-path:
+    description: Path for the JSON report.
+    required: false
+    default: glamprobe-report.json
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@stable
+    - id: run
+      shell: bash
+      env:
+        BASELINE_HEADERS: ${{ inputs.baseline-headers }}
+        CANDIDATE_HEADERS: ${{ inputs.candidate-headers }}
+      run: |
+        baseline_args=()
+        candidate_args=()
+        while IFS= read -r header; do
+          [ -z "$header" ] || baseline_args+=(--baseline-header "$header")
+        done <<< "$BASELINE_HEADERS"
+        while IFS= read -r header; do
+          [ -z "$header" ] || candidate_args+=(--candidate-header "$header")
+        done <<< "$CANDIDATE_HEADERS"
+        set +e
+        cargo run --manifest-path "$GITHUB_ACTION_PATH/../../Cargo.toml" -- run "${{ inputs.scenario }}" \
+          --baseline-url "${{ inputs.baseline-url }}" \
+          --candidate-url "${{ inputs.candidate-url }}" \
+          --output "${{ inputs.report-path }}" \
+          "${baseline_args[@]}" "${candidate_args[@]}"
+        status=$?
+        echo "status=$status" >> "$GITHUB_OUTPUT"
+        exit 0
+    - shell: bash
+      run: node "$GITHUB_ACTION_PATH/report.mjs" "${{ inputs.report-path }}"
+    - if: steps.run.outputs.status != '0'
+      shell: bash
+      run: exit "${{ steps.run.outputs.status }}"

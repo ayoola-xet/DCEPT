@@ -159,3 +159,9 @@ npm run build
 ```
 
 Run `scripts/build-wasm.sh` when you update the Rust comparison core. The command creates a Node-compatible WebAssembly package at `apps/web/lib/wasm`.
+
+## CI and downstream adapters
+
+Use the local GitHub Action from `actions/glamprobe` to run a scenario in a workflow. It writes a JSON report and adds one warning annotation for each difference.
+
+`adapters` contains commands for ethers.js, viem, Foundry, and Hardhat. Use an adapter when you must test the same RPC operation through the downstream tool, not only through raw JSON-RPC.
