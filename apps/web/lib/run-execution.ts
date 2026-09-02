@@ -114,7 +114,8 @@ async function executeOperation(action: HostedAction, target: Target, side: "bas
     if (action.kind === "rpc" && !response.ok) throw new Error(`JSON-RPC endpoint returned HTTP ${response.status}: ${text.slice(0, 500)}`);
     return { response: action.kind === "rpc" ? body : { status: response.status, body }, error: null, duration_ms: Math.round(performance.now() - started) };
   } catch (error) {
-    return { response: null, error: error instanceof Error ? error.message : "Request failed.", duration_ms: Math.round(performance.now() - started) };
+    const message = error instanceof Error ? error.message : "Request failed.";
+    return { response: null, error: message.replaceAll(target.endpoint, "<target>"), duration_ms: Math.round(performance.now() - started) };
   }
 }
 

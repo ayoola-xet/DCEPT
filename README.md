@@ -171,3 +171,5 @@ Use the local GitHub Action from `actions/glamprobe` to run a scenario in a work
 Organization owners and administrators can create scoped API tokens at `POST /api/v1/tokens`. The token value is returned once. GlamProbe stores only its SHA-256 hash.
 
 New organizations start with a limit of two concurrent runs, 10,000 monthly cases, and 1 GiB of artifact storage. An administrator can change these values in `organization_quotas`.
+
+Hosted target endpoints must use HTTPS. GlamProbe rejects private, loopback, and link-local addresses. Store provider credentials in encrypted target headers, not in endpoint URLs.
