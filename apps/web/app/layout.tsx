@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { ConnectWalletButton } from "@/components/connect-wallet-button";
+
 import "./styles.css";
 
 export const metadata: Metadata = {
@@ -23,7 +25,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
               <a href="/runs">Runs</a>
               <a href="/scenarios">Scenarios</a>
             </nav>
-            <button className="wallet-button" type="button">Connect wallet</button>
+            <ConnectWalletButton />
           </header>
           {children}
         </main>

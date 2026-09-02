@@ -9,7 +9,7 @@ button { font: inherit; }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 800; letter-spacing: -.04em; }
 .brand-mark { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 9px; background: linear-gradient(135deg, #aab4ff, #6d5ee5); color: #08111f; font-size: 15px; }
 nav { display: flex; gap: 22px; color: var(--muted); font-size: 14px; } nav a:hover { color: var(--ink); }
-.wallet-button, .primary-action { margin-left: auto; border: 1px solid #4858aa; border-radius: 9px; background: #1b2850; color: #dbe2ff; cursor: pointer; padding: 10px 14px; font-size: 14px; font-weight: 700; }
+.wallet-control { position: relative; margin-left: auto; }.wallet-button, .primary-action { margin-left: auto; border: 1px solid #4858aa; border-radius: 9px; background: #1b2850; color: #dbe2ff; cursor: pointer; padding: 10px 14px; font-size: 14px; font-weight: 700; }.wallet-button:disabled { cursor: wait; opacity: .75; }.wallet-error { position: absolute; top: 42px; right: 0; width: 220px; color: #ffd8d0; font-size: 12px; line-height: 1.35; }
 .primary-action { display: inline-block; margin: 0; border-color: transparent; background: var(--accent); color: #0d1530; }
 .content { padding-top: 78px; }
 .eyebrow { color: #9aa9ff; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
