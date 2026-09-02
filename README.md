@@ -160,6 +160,8 @@ npm run build
 
 Run `scripts/build-wasm.sh` when you update the Rust comparison core. The command creates a Node-compatible WebAssembly package at `apps/web/lib/wasm`.
 
+See [apps/web/DEPLOYMENT.md](apps/web/DEPLOYMENT.md) for the production deployment procedure.
+
 ## CI and downstream adapters
 
 Use the local GitHub Action from `actions/glamprobe` to run a scenario in a workflow. It writes a JSON report and adds one warning annotation for each difference.
