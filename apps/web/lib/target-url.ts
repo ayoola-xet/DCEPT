@@ -1,4 +1,5 @@
 import { isIP } from "node:net";
+import { lookup } from "node:dns/promises";
 
 export function validateTargetUrl(value: string): string | null {
   let url: URL;
@@ -6,6 +7,22 @@ export function validateTargetUrl(value: string): string | null {
   if (url.protocol !== "https:") return "Hosted targets must use HTTPS.";
   if (url.username || url.password) return "Put credentials in headers, not the endpoint URL.";
   if (isPrivateHost(url.hostname)) return "Private, loopback, and link-local target addresses are not allowed.";
+  return null;
+}
+
+/** Validate a target for a public server route after DNS resolution. */
+export async function validatePublicTargetUrl(value: string): Promise<string | null> {
+  const basicError = validateTargetUrl(value);
+  if (basicError) return basicError;
+  try {
+    const url = new URL(value);
+    const addresses = await lookup(url.hostname, { all: true, verbatim: true });
+    if (addresses.length === 0 || addresses.some((address) => isPrivateHost(address.address))) {
+      return "Private, loopback, and link-local target addresses are not allowed.";
+    }
+  } catch {
+    return "Target endpoint host could not be resolved.";
+  }
   return null;
 }
 

@@ -21,9 +21,9 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
               <span>GlamProbe</span>
             </a>
             <nav aria-label="Primary navigation">
-              <a href="/">Overview</a>
-              <a href="/runs">Runs</a>
-              <a href="/scenarios">Scenarios</a>
+              <a href="/">Local run</a>
+              <a href="/runs">Cloud runs</a>
+              <a href="/scenarios">Cloud scenarios</a>
             </nav>
             <ConnectWalletButton />
           </header>

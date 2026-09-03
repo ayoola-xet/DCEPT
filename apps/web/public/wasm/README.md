@@ -26,9 +26,8 @@ page. Load a YAML scenario. Then add two public RPC endpoints.
 Browser mode sends requests from the browser. The endpoints must allow CORS.
 It does not send endpoint credentials. Stateless Vercel mode sends requests
 through `/api/public/run`. It accepts public HTTPS endpoints only. It does not
-save run data. It limits each run to 20 actions. It blocks fuzzing, credential
-headers, write RPC methods, and write HTTP methods. Use the local CLI for
-authenticated endpoints, fuzzing, or write tests.
+save run data. It limits each run to 20 actions. It blocks fuzzing and write RPC
+methods. Use the local CLI for authenticated endpoints, fuzzing, or write tests.
 
 ## Current capabilities
 

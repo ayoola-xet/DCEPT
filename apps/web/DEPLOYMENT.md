@@ -2,15 +2,25 @@
 
 Deploy `apps/web` as the Vercel project root.
 
+## Public no-login deployment
+
+The local-run page and `/api/public/run` work with no environment values. They
+do not use a database, login, or Cloud storage. The public route accepts public
+HTTPS endpoints only. It limits runs to 20 actions. It blocks fuzzing,
+credential headers, write RPC methods, and write HTTP methods.
+
+The route is public. Configure Vercel Firewall rate limiting before you expose
+it to uncontrolled traffic.
+
 ## Required services
 
 - Vercel Pro or Enterprise with Workflow enabled.
 - Neon PostgreSQL.
 - A KMS-managed, base64-encoded 32-byte encryption key.
 
-## Required environment values
+## Required Cloud environment values
 
-Set these values in each Vercel environment that can run a workflow:
+Set these values only when you enable Cloud pages, wallet login, and workflows:
 
 ```text
 DATABASE_URL

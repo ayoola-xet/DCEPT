@@ -17,7 +17,7 @@ export function ConnectWalletButton() {
 
   async function connect() {
     if (!window.ethereum) {
-      setError("Install a wallet extension that supports Ethereum.");
+      setError("Install a wallet extension that supports Ethereum for Cloud sign-in.");
       setState("error");
       return;
     }
@@ -27,7 +27,7 @@ export function ConnectWalletButton() {
       const accounts = await window.ethereum.request({ method: "eth_requestAccounts" }) as string[];
       const chainId = await window.ethereum.request({ method: "eth_chainId" }) as string;
       const nonceResponse = await fetch("/api/auth/nonce", { method: "POST" });
-      if (!nonceResponse.ok) throw new Error("Could not prepare wallet sign-in.");
+      if (!nonceResponse.ok) throw new Error("Could not prepare Cloud sign-in.");
       const { nonce } = await nonceResponse.json() as { nonce: string };
       const message = new SiweMessage({
         domain: window.location.host,
@@ -47,7 +47,7 @@ export function ConnectWalletButton() {
       if (!verified.ok) throw new Error("The wallet signature was not accepted.");
       window.location.reload();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Wallet sign-in failed.");
+      setError(reason instanceof Error ? reason.message : "Cloud sign-in failed.");
       setState("error");
     }
   }
@@ -55,7 +55,7 @@ export function ConnectWalletButton() {
   return (
     <span className="wallet-control">
       <button className="wallet-button" type="button" onClick={connect} disabled={state === "loading"}>
-        {state === "loading" ? "Connecting…" : "Connect wallet"}
+        {state === "loading" ? "Connecting…" : "Cloud sign in"}
       </button>
       {state === "error" && <span className="wallet-error" role="alert">{error}</span>}
     </span>
