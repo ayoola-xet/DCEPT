@@ -95,7 +95,7 @@ export default function LocalRunPage() {
       <div className="page-heading compact">
         <div>
           <h1>Find an upgrade regression before the fork.</h1>
-          <p>Select a versioned Glamsterdam probe. Run it against state-aligned baseline and candidate targets. The browser loads the Rust comparison core as WebAssembly.</p>
+          <p>Select a versioned Glamsterdam probe. Run it against state-aligned baseline and candidate targets. The browser loads the Rust scenario and comparison core as WebAssembly.</p>
         </div>
       </div>
 
