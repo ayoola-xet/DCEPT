@@ -5,7 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import { defaultGlamsterdamProbe } from "@/lib/glamsterdam-probes";
 
 type Target = { id: string; name: string; created_at: string };
-type Scenario = { id: string; name: string; checksum: string; updated_at: string };
+type ScenarioInput = { description: string; kind: "string" | "address" | "quantity" | "block_tag" | "json"; required: boolean; default?: unknown };
+type Scenario = { id: string; name: string; checksum: string; updated_at: string; inputs: Record<string, ScenarioInput> };
 type Run = { id: string; status: string; scenario_name: string; created_at: string; action_count: number };
 type RunDetail = { id: string; status: string; created_at: string; completed_at: string | null; error_message: string | null; report_json: unknown | null };
 type CloudData = { targets: Target[]; scenarios: Scenario[]; runs: Run[] };
@@ -22,7 +23,9 @@ export function CloudConsole() {
   const [runScenario, setRunScenario] = useState("");
   const [baselineTarget, setBaselineTarget] = useState("");
   const [candidateTarget, setCandidateTarget] = useState("");
+  const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const [selectedRun, setSelectedRun] = useState<RunDetail | null>(null);
+  const selectedScenario = data.scenarios.find((scenario) => scenario.id === runScenario);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -50,6 +53,10 @@ export function CloudConsole() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    setInputValues(initialInputValues(selectedScenario));
+  }, [selectedScenario]);
 
   async function createTarget(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -92,7 +99,12 @@ export function CloudConsole() {
       const response = await fetch("/api/v1/runs", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ scenarioId: runScenario, baselineTargetId: baselineTarget, candidateTargetId: candidateTarget }),
+        body: JSON.stringify({
+          scenarioId: runScenario,
+          baselineTargetId: baselineTarget,
+          candidateTargetId: candidateTarget,
+          inputValues: parseInputValues(selectedScenario, inputValues),
+        }),
       });
       if (!response.ok) throw new Error(await responseMessage(response));
       setMessage("Cloud run queued.");
@@ -158,7 +170,8 @@ export function CloudConsole() {
         <label className="field"><span>Scenario</span><select value={runScenario} onChange={(event) => setRunScenario(event.target.value)} required><option value="">Select scenario</option>{data.scenarios.map((scenario) => <option value={scenario.id} key={scenario.id}>{scenario.name}</option>)}</select></label>
         <label className="field"><span>Baseline target</span><select value={baselineTarget} onChange={(event) => setBaselineTarget(event.target.value)} required><option value="">Select target</option>{data.targets.map((target) => <option value={target.id} key={target.id}>{target.name}</option>)}</select></label>
         <label className="field"><span>Candidate target</span><select value={candidateTarget} onChange={(event) => setCandidateTarget(event.target.value)} required><option value="">Select target</option>{data.targets.map((target) => <option value={target.id} key={target.id}>{target.name}</option>)}</select></label>
-        <button className="run-button" type="submit" disabled={!runScenario || !baselineTarget || !candidateTarget || baselineTarget === candidateTarget}>Queue Cloud run</button>
+        {selectedScenario && Object.keys(selectedScenario.inputs).length > 0 && <div className="cloud-inputs"><strong>Scenario inputs</strong>{Object.entries(selectedScenario.inputs).map(([name, input]) => <label className="field" key={name}><span>{name}{input.required ? " *" : ""}</span>{input.kind === "json" ? <textarea value={inputValues[name] ?? ""} onChange={(event) => setInputValues((values) => ({ ...values, [name]: event.target.value }))} placeholder={input.description} required={input.required} spellCheck="false" /> : <input value={inputValues[name] ?? ""} onChange={(event) => setInputValues((values) => ({ ...values, [name]: event.target.value }))} placeholder={input.description} required={input.required} />}</label>)}</div>}
+        <button className="run-button" type="submit" disabled={!runScenario || !baselineTarget || !candidateTarget || baselineTarget === candidateTarget || hasMissingRequiredInput(selectedScenario, inputValues)}>Queue Cloud run</button>
       </form>
 
       <section className="panel cloud-runs">
@@ -177,4 +190,29 @@ function CloudList({ title, items, empty }: { title: string; items: string[]; em
 async function responseMessage(response: Response): Promise<string> {
   const body = await response.json().catch(() => null) as { error?: string } | null;
   return body?.error || `Cloud request failed with HTTP ${response.status}.`;
+}
+
+function initialInputValues(scenario: Scenario | undefined): Record<string, string> {
+  if (!scenario) return {};
+  return Object.fromEntries(Object.entries(scenario.inputs).flatMap(([name, input]) => input.default === undefined ? [] : [[name, input.kind === "json" ? JSON.stringify(input.default) : String(input.default)]]));
+}
+
+function parseInputValues(scenario: Scenario | undefined, values: Record<string, string>): Record<string, unknown> {
+  if (!scenario) throw new Error("Select a scenario.");
+  return Object.fromEntries(Object.entries(scenario.inputs).flatMap(([name, input]) => {
+    const value = values[name]?.trim() ?? "";
+    if (!value) {
+      if (input.required) throw new Error(`Input '${name}' is required.`);
+      return [];
+    }
+    try {
+      return [[name, input.kind === "json" ? JSON.parse(value) : value]];
+    } catch {
+      throw new Error(`Input '${name}' must contain valid JSON.`);
+    }
+  }));
+}
+
+function hasMissingRequiredInput(scenario: Scenario | undefined, values: Record<string, string>): boolean {
+  return Object.entries(scenario?.inputs ?? {}).some(([name, input]) => input.required && !(values[name]?.trim()));
 }

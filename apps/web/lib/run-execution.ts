@@ -1,12 +1,13 @@
 import { decrypt } from "./crypto";
 import { compareJson } from "./compare";
 import { database } from "./db";
-import { parseHostedScenario, type HostedAction, type HostedScenario } from "./hosted-scenario";
+import { parseHostedScenario, resolveHostedScenarioInputs, type HostedAction, type HostedScenario } from "./hosted-scenario";
 
 type StoredRun = {
   status: string;
   organization_id: string;
-  yaml_source: string;
+  scenario_yaml_source: string;
+  input_values: Record<string, unknown>;
   baseline_endpoint_ciphertext: string;
   baseline_headers_ciphertext: string;
   candidate_endpoint_ciphertext: string;
@@ -26,7 +27,7 @@ export async function prepareRun(runId: string): Promise<{ actionCount: number; 
   const run = await loadRun(runId);
   if (run.status === "canceled") return { actionCount: 0, canceled: true };
   await database()`UPDATE runs SET status = 'running', error_message = NULL WHERE id = ${runId} AND status = 'queued'`;
-  const scenario = parseHostedScenario(run.yaml_source);
+  const scenario = resolvedScenario(run);
   return { actionCount: scenario.actions.length * (scenario.fuzz?.cases ?? 1), canceled: false };
 }
 
@@ -34,7 +35,7 @@ export async function executeBatch(runId: string, startIndex: number): Promise<{
   "use step";
   const run = await loadRun(runId);
   if (run.status === "canceled") return { nextIndex: startIndex, done: true, canceled: true };
-  const scenario = parseHostedScenario(run.yaml_source);
+  const scenario = resolvedScenario(run);
   const baseline = targetFrom(run, "baseline");
   const candidate = targetFrom(run, "candidate");
   const fuzzCases = generatedCases(scenario);
@@ -71,7 +72,9 @@ export async function failRun(runId: string, message: string): Promise<void> {
 
 async function loadRun(runId: string): Promise<StoredRun> {
   const rows = await database()`
-    SELECT r.status, r.organization_id, r.report_json, s.yaml_source,
+    SELECT r.status, r.organization_id, r.report_json,
+      COALESCE(r.scenario_yaml_source, s.yaml_source) AS scenario_yaml_source,
+      r.input_values,
       baseline.endpoint_ciphertext AS baseline_endpoint_ciphertext,
       baseline.headers_ciphertext AS baseline_headers_ciphertext,
       candidate.endpoint_ciphertext AS candidate_endpoint_ciphertext,
@@ -85,6 +88,13 @@ async function loadRun(runId: string): Promise<StoredRun> {
   `;
   if (!rows[0]) throw new Error("Run does not exist.");
   return rows[0] as StoredRun;
+}
+
+function resolvedScenario(run: StoredRun): HostedScenario {
+  return resolveHostedScenarioInputs(
+    parseHostedScenario(run.scenario_yaml_source),
+    run.input_values ?? {},
+  );
 }
 
 function targetFrom(run: StoredRun, side: "baseline" | "candidate"): Target {

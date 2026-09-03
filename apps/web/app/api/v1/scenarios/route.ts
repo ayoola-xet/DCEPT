@@ -13,7 +13,18 @@ export async function GET(request: NextRequest) {
   const session = await requireSession(request);
   if (isResponse(session)) return session;
   if (!hasScope(session, "scenarios:read")) return NextResponse.json({ error: "API token does not have the required scope." }, { status: 403 });
-  const scenarios = await database()`SELECT id, name, checksum, created_at, updated_at FROM scenarios WHERE organization_id = ${session.organizationId} ORDER BY updated_at DESC`;
+  const rows = await database()`SELECT id, name, checksum, created_at, updated_at, yaml_source FROM scenarios WHERE organization_id = ${session.organizationId} ORDER BY updated_at DESC`;
+  const scenarios = rows.map((row) => {
+    const scenario = parseHostedScenario(row.yaml_source as string);
+    return {
+      id: row.id,
+      name: row.name,
+      checksum: row.checksum,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      inputs: scenario.inputs,
+    };
+  });
   return NextResponse.json({ scenarios });
 }
 

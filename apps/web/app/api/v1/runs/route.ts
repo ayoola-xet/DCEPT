@@ -5,10 +5,15 @@ import { z } from "zod";
 import { badRequest, hasScope, isResponse, requireSession } from "@/lib/api";
 import { requireAccess } from "@/lib/authorization";
 import { database, newId } from "@/lib/db";
-import { parseHostedScenario } from "@/lib/hosted-scenario";
+import { parseHostedScenario, resolveHostedScenarioInputs } from "@/lib/hosted-scenario";
 import { runScenarioWorkflow } from "@/workflows/run-scenario";
 
-const runSchema = z.object({ scenarioId: z.string().uuid(), baselineTargetId: z.string().uuid(), candidateTargetId: z.string().uuid() });
+const runSchema = z.object({
+  scenarioId: z.string().uuid(),
+  baselineTargetId: z.string().uuid(),
+  candidateTargetId: z.string().uuid(),
+  inputValues: z.record(z.string(), z.unknown()).default({}),
+});
 
 export async function GET(request: NextRequest) {
   const session = await requireSession(request);
@@ -41,9 +46,11 @@ export async function POST(request: NextRequest) {
   if (!scenarios[0] || targets.length !== 2) return NextResponse.json({ error: "Scenario or target does not exist in this organization." }, { status: 404 });
   let caseCount: number;
   try {
-    caseCount = parseHostedScenario(scenarios[0].yaml_source as string).fuzz?.cases ?? 1;
-  } catch {
-    return NextResponse.json({ error: "Stored scenario YAML is invalid." }, { status: 409 });
+    const scenario = parseHostedScenario(scenarios[0].yaml_source as string);
+    caseCount = resolveHostedScenarioInputs(scenario, parsed.data.inputValues).fuzz?.cases ?? 1;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Stored scenario YAML is invalid.";
+    return NextResponse.json({ error: `Scenario inputs are invalid: ${message}` }, { status: 400 });
   }
   await sql`INSERT INTO organization_quotas (organization_id) VALUES (${session.organizationId}) ON CONFLICT (organization_id) DO NOTHING`;
   const usage = await sql`
@@ -65,8 +72,8 @@ export async function POST(request: NextRequest) {
   }
   const id = newId();
   await sql`
-    INSERT INTO runs (id, organization_id, scenario_id, baseline_target_id, candidate_target_id, case_count, status)
-    VALUES (${id}, ${session.organizationId}, ${parsed.data.scenarioId}, ${parsed.data.baselineTargetId}, ${parsed.data.candidateTargetId}, ${caseCount}, 'queued')
+    INSERT INTO runs (id, organization_id, scenario_id, baseline_target_id, candidate_target_id, scenario_yaml_source, input_values, case_count, status)
+    VALUES (${id}, ${session.organizationId}, ${parsed.data.scenarioId}, ${parsed.data.baselineTargetId}, ${parsed.data.candidateTargetId}, ${scenarios[0].yaml_source as string}, ${JSON.stringify(parsed.data.inputValues)}::jsonb, ${caseCount}, 'queued')
   `;
   await start(runScenarioWorkflow, [id]);
   return NextResponse.json({ run: { id, status: "queued" } }, { status: 202 });

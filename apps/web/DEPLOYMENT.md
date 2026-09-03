@@ -33,11 +33,12 @@ Use a different `ENCRYPTION_KEY` and `SESSION_SECRET` for preview and production
 ## First deployment
 
 1. Create the Neon database.
-2. Apply `db/schema.sql` to the database.
+2. Apply `db/schema.sql` to a new database. Apply each file in `db/migrations`
+   in name order to an existing database.
 3. Set the required environment values in Vercel.
 4. Deploy the `apps/web` directory.
 5. Connect a wallet and create a target, scenario, and run.
-6. Open `/runs`. Save a target and a scenario. Queue a run.
+6. Open `/runs`. Save a target and a scenario. Set any scenario inputs. Queue a run.
 7. Confirm that the workflow completes and that the run report contains no endpoint credentials.
 
 ## Operations
