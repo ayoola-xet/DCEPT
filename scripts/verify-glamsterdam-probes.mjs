@@ -171,8 +171,8 @@ async function verifyFixtureReplay() {
       lastblockhash: "0xfeed",
       postStateHash: "0xbeef",
       engineNewPayloads: [
-        { version: 5, params: [{ blockHash: "0x01" }, [], "0x02", []] },
-        { version: 5, params: [{ blockHash: "0x03" }, [], "0x04", []], errorCode: -32602 },
+        { newPayloadVersion: 5, params: [{ blockHash: "0x01" }, [], "0x02", []] },
+        { newPayloadVersion: 5, params: [{ blockHash: "0x03" }, [], "0x04", []], errorCode: -32602 },
       ],
     },
   }));

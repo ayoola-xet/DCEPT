@@ -12,6 +12,12 @@ pub struct FixtureCaseSummary {
     pub name: String,
     pub payload_count: usize,
     pub engine_versions: Vec<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forkchoice_version: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_head: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_state_root: Option<String>,
 }
 
 /// Read a `blockchain_test_engine` fixture file without starting a client.
@@ -30,6 +36,16 @@ pub fn inspect_engine_fixture(source: &str) -> Result<Vec<FixtureCaseSummary>, F
             name: name.clone(),
             payload_count: payloads.len(),
             engine_versions,
+            forkchoice_version: optional_version(
+                fixture,
+                &["engineFcuVersion", "engine_fcu_version"],
+            )?,
+            expected_head: field(fixture, &["lastblockhash", "lastBlockHash"])
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            expected_state_root: field(fixture, &["postStateHash", "post_state_hash"])
+                .and_then(Value::as_str)
+                .map(str::to_owned),
         });
     }
     Ok(summaries)
@@ -278,6 +294,17 @@ fn engine_version(directive: &Value) -> Result<u64, FixtureError> {
         .ok_or_else(|| FixtureError::InvalidVersion(value.clone()))
 }
 
+fn optional_version(value: &Value, names: &[&str]) -> Result<Option<u64>, FixtureError> {
+    let Some(value) = field(value, names) else {
+        return Ok(None);
+    };
+    value
+        .as_u64()
+        .or_else(|| value.as_str().and_then(|value| value.parse().ok()))
+        .map(Some)
+        .ok_or_else(|| FixtureError::InvalidVersion(value.clone()))
+}
+
 fn field<'a>(value: &'a Value, names: &[&str]) -> Option<&'a Value> {
     let object = value.as_object()?;
     names.iter().find_map(|name| object.get(*name))
@@ -317,7 +344,7 @@ mod tests {
         "lastblockhash": "0xfeed",
         "postStateHash": "0xbeef",
         "engineNewPayloads": [{
-          "version": 5,
+          "newPayloadVersion": 5,
           "params": [{"blockAccessList": "0xc0"}, [], "0x01", []]
         }, {
           "version": 4,
@@ -341,6 +368,9 @@ mod tests {
         let cases = inspect_engine_fixture(FIXTURE).expect("fixture is valid");
         assert_eq!(cases[0].name, "mixed_results");
         assert_eq!(cases[0].engine_versions, vec![5, 4, 3]);
+        assert_eq!(cases[0].forkchoice_version, Some(4));
+        assert_eq!(cases[0].expected_head.as_deref(), Some("0xfeed"));
+        assert_eq!(cases[0].expected_state_root.as_deref(), Some("0xbeef"));
         let params = new_payload_v5_params(FIXTURE, "mixed_results", 0).expect("params convert");
         assert_eq!(
             params.pointer("/0/blockAccessList"),
