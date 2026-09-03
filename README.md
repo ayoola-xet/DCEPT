@@ -30,6 +30,10 @@ save run data. It limits each run to 20 actions. It blocks fuzzing, credential
 headers, write RPC methods, and write HTTP methods. Use the local CLI for
 authenticated endpoints, fuzzing, or write tests.
 
+The web workspace detects Engine API probes. It gives you a local CLI command
+instead of sending Engine API credentials through the browser or Vercel. You
+can download the selected YAML scenario and run it with your local JWT headers.
+
 ## Current capabilities
 
 - Read versioned YAML scenarios.

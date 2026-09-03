@@ -19,13 +19,19 @@ export default function LocalRunPage() {
   const [report, setReport] = useState<PublicRunReport | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showYaml, setShowYaml] = useState(false);
   const inputScenario = tryParseScenario(scenarioYaml);
+  const needsEngineCli = inputScenario?.actions.some((action) => action.kind === "rpc" && action.method.startsWith("engine_")) ?? false;
+  const targetLabel = needsEngineCli ? "Engine API endpoint" : inputScenario?.actions.some((action) => action.kind === "http") ? "Builder API base URL" : "Execution RPC endpoint";
+  const cliCommand = buildCliCommand(selectedProbe, inputScenario, inputValues, baseline, candidate, needsEngineCli);
 
   async function loadScenario(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
     setScenarioYaml(await file.text());
     setSelectedProbe("custom");
+    setShowYaml(true);
     setInputValues({});
     setReport(null);
     setError("");
@@ -36,6 +42,7 @@ export default function LocalRunPage() {
     setError("");
     setReport(null);
     try {
+      if (needsEngineCli) throw new Error("This probe calls the authenticated Engine API. Copy and run the local CLI command below.");
       const inputs = inputValuesFor(inputScenario, inputValues);
       const scenario = resolveHostedScenarioInputs(parseHostedScenario(scenarioYaml), inputs);
       if (mode === "browser") {
@@ -58,6 +65,25 @@ export default function LocalRunPage() {
     }
   }
 
+  async function copyCliCommand() {
+    try {
+      await navigator.clipboard.writeText(cliCommand);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2_000);
+    } catch {
+      setError("Could not copy the command. Select it and copy it manually.");
+    }
+  }
+
+  function downloadScenario() {
+    const blob = new Blob([scenarioYaml], { type: "text/yaml" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${selectedProbe === "custom" ? "glamprobe-scenario" : selectedProbe.replaceAll("/", "-")}.yaml`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
   return (
     <section className="content local-workspace">
       <div className="eyebrow">Glamsterdam differential probe</div>
@@ -76,7 +102,10 @@ export default function LocalRunPage() {
         <section className="panel workspace-form" aria-label="Scenario and targets">
           <div className="panel-heading">
             <div><span className="eyebrow">Input</span><h2>Probe and targets</h2></div>
-            <label className="file-load">Load YAML<input type="file" accept=".yaml,.yml,text/yaml" onChange={loadScenario} /></label>
+            <div className="form-actions">
+              <button className="text-button" type="button" onClick={downloadScenario}>Download YAML</button>
+              <label className="file-load">Load YAML<input type="file" accept=".yaml,.yml,text/yaml" onChange={loadScenario} /></label>
+            </div>
           </div>
 
           <label className="field">
@@ -84,6 +113,7 @@ export default function LocalRunPage() {
             <select value={selectedProbe} onChange={(event) => {
               const probe = glamsterdamProbes.find((candidate) => candidate.id === event.target.value);
               setSelectedProbe(probe?.id ?? "custom");
+              setShowYaml(!probe);
               if (probe) setScenarioYaml(probe.yaml);
               setInputValues({});
               setReport(null);
@@ -95,16 +125,12 @@ export default function LocalRunPage() {
           </label>
           {selectedProbe !== "custom" && <p className="probe-detail">{glamsterdamProbes.find((probe) => probe.id === selectedProbe)?.detail}</p>}
           <label className="field">
-            <span>Baseline RPC endpoint</span>
+            <span>Baseline {targetLabel}</span>
             <input value={baseline} onChange={(event) => setBaseline(event.target.value)} placeholder="https://baseline.example/rpc" inputMode="url" />
           </label>
           <label className="field">
-            <span>Candidate RPC endpoint</span>
+            <span>Candidate {targetLabel}</span>
             <input value={candidate} onChange={(event) => setCandidate(event.target.value)} placeholder="https://candidate.example/rpc" inputMode="url" />
-          </label>
-          <label className="field">
-            <span>Scenario YAML</span>
-            <textarea className="editor" value={scenarioYaml} onChange={(event) => setScenarioYaml(event.target.value)} spellCheck="false" />
           </label>
           {inputScenario && Object.entries(inputScenario.inputs).map(([name, input]) => (
             <label className="field" key={name}>
@@ -119,16 +145,35 @@ export default function LocalRunPage() {
             </label>
           ))}
 
-          <fieldset className="mode-choice">
-            <legend>Run mode</legend>
-            <label><input type="radio" name="mode" checked={mode === "browser"} onChange={() => setMode("browser")} /> Browser</label>
-            <p>Uses direct requests. The RPC endpoints must allow browser CORS access.</p>
-            <label><input type="radio" name="mode" checked={mode === "vercel"} onChange={() => setMode("vercel")} /> Stateless Vercel route</label>
-            <p>Uses public HTTPS endpoints. It allows up to 20 actions. It blocks fuzzing, credential headers, write RPC methods, and write HTTP methods.</p>
-          </fieldset>
-          <button className="run-button" type="button" onClick={run} disabled={busy || !baseline || !candidate}>
-            {busy ? "Running…" : "Run differential test"}
-          </button>
+          {needsEngineCli ? (
+            <section className="cli-guide" aria-label="Local CLI command">
+              <div><span className="eyebrow">Authenticated Engine API</span><h3>Run this probe locally</h3></div>
+              <p>Browser and Vercel modes do not accept Engine API credentials. This command keeps both JWT values on your device.</p>
+              <pre>{cliCommand}</pre>
+              <button className="secondary-button" type="button" onClick={copyCliCommand}>{copied ? "Copied" : "Copy CLI command"}</button>
+              <p className="cli-note">For an official test case, use <code>glamprobe fixture run fixture.json --case test_name</code> with nodes prepared from the same fixture state.</p>
+            </section>
+          ) : (
+            <>
+              <fieldset className="mode-choice">
+                <legend>Run mode</legend>
+                <label><input type="radio" name="mode" checked={mode === "browser"} onChange={() => setMode("browser")} /> Browser</label>
+                <p>Uses direct requests. The target URLs must allow browser CORS access.</p>
+                <label><input type="radio" name="mode" checked={mode === "vercel"} onChange={() => setMode("vercel")} /> Stateless Vercel route</label>
+                <p>Uses public HTTPS targets. It allows up to 20 actions. It blocks fuzzing, credential headers, write RPC methods, and write HTTP methods.</p>
+              </fieldset>
+              <button className="run-button" type="button" onClick={run} disabled={busy || !baseline || !candidate}>
+                {busy ? "Running…" : "Run differential test"}
+              </button>
+            </>
+          )}
+          <details className="scenario-editor" open={showYaml} onToggle={(event) => setShowYaml(event.currentTarget.open)}>
+            <summary>View or edit scenario YAML</summary>
+            <label className="field">
+              <span>Scenario YAML</span>
+              <textarea className="editor" value={scenarioYaml} onChange={(event) => { setScenarioYaml(event.target.value); setSelectedProbe("custom"); setShowYaml(true); }} spellCheck="false" />
+            </label>
+          </details>
           {error && <p className="form-error" role="alert">{error}</p>}
         </section>
 
@@ -183,4 +228,32 @@ function inputValuesFor(
     output[name] = input.kind === "json" ? JSON.parse(value) : value;
   }
   return output;
+}
+
+function buildCliCommand(
+  selectedProbe: string,
+  scenario: ReturnType<typeof tryParseScenario>,
+  inputValues: Record<string, string>,
+  baseline: string,
+  candidate: string,
+  needsEngineCli: boolean,
+): string {
+  const target = (value: string, placeholder: string) => shellQuote(value || placeholder);
+  const command = selectedProbe === "custom" ? "glamprobe run scenario.yaml" : `glamprobe probe run ${selectedProbe}`;
+  const lines = [command, `  --baseline ${target(baseline, "http://baseline-engine.example")}`, `  --candidate ${target(candidate, "http://candidate-engine.example")}`];
+  if (scenario) {
+    for (const [name, input] of Object.entries(scenario.inputs)) {
+      const value = inputValues[name] || displayInputValue(input.default);
+      if (value) lines.push(`  --var ${shellQuote(`${name}=${value}`)}`);
+    }
+  }
+  if (needsEngineCli) {
+    lines.push("  --baseline-header 'Authorization: Bearer <BASELINE_JWT>'");
+    lines.push("  --candidate-header 'Authorization: Bearer <CANDIDATE_JWT>'");
+  }
+  return lines.join(" \\\n");
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\\"'\\\"'")}'`;
 }

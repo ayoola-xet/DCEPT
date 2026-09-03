@@ -8,6 +8,7 @@ use glamprobe::{
     fixtures::{engine_fixture_scenario, inspect_engine_fixture, new_payload_v5_params},
     minimize_actions,
     probes::{built_in_probes, load_built_in_probe},
+    scenario::{InputKind, ScenarioInput},
 };
 use reqwest::Url;
 
@@ -255,8 +256,9 @@ async fn main() -> Result<()> {
                 targets,
                 output,
             } => {
-                let supplied = parse_input_arguments(&targets.inputs)?;
-                let scenario = load_built_in_probe(&id)?.resolve_inputs(&supplied)?;
+                let scenario = load_built_in_probe(&id)?;
+                let supplied = parse_input_arguments(&targets.inputs, &scenario.inputs)?;
+                let scenario = scenario.resolve_inputs(&supplied)?;
                 let timeout = targets.timeout_secs;
                 let targets = target_pair(targets)?;
                 let report = execute_scenario(
@@ -339,7 +341,7 @@ fn read_scenario(path: &PathBuf, inputs: &InputArguments) -> Result<Scenario> {
         fs::read_to_string(path).with_context(|| format!("could not read {}", path.display()))?;
     let scenario = Scenario::from_yaml(&source).map_err(anyhow::Error::new)?;
     scenario
-        .resolve_inputs(&parse_input_arguments(inputs)?)
+        .resolve_inputs(&parse_input_arguments(inputs, &scenario.inputs)?)
         .map_err(anyhow::Error::new)
 }
 
@@ -347,7 +349,10 @@ fn read_fixture(path: &PathBuf) -> Result<String> {
     fs::read_to_string(path).with_context(|| format!("could not read fixture {}", path.display()))
 }
 
-fn parse_input_arguments(inputs: &InputArguments) -> Result<BTreeMap<String, serde_json::Value>> {
+fn parse_input_arguments(
+    inputs: &InputArguments,
+    definitions: &BTreeMap<String, ScenarioInput>,
+) -> Result<BTreeMap<String, serde_json::Value>> {
     let mut values = BTreeMap::new();
     for pair in &inputs.variables {
         let (name, value) = pair
@@ -356,8 +361,11 @@ fn parse_input_arguments(inputs: &InputArguments) -> Result<BTreeMap<String, ser
         if name.trim().is_empty() {
             anyhow::bail!("input name is required");
         }
-        let value = serde_json::from_str(value)
-            .unwrap_or_else(|_| serde_json::Value::String(value.to_owned()));
+        let value = match definitions.get(name).map(|input| input.kind) {
+            Some(InputKind::Json) | Some(InputKind::Quantity) => serde_json::from_str(value)
+                .unwrap_or_else(|_| serde_json::Value::String(value.to_owned())),
+            _ => serde_json::Value::String(value.to_owned()),
+        };
         if values.insert(name.to_owned(), value).is_some() {
             anyhow::bail!("input '{name}' was set more than once");
         }
@@ -422,4 +430,43 @@ fn build_target_pair(
             headers: headers_from_pairs(&candidate_headers).map_err(anyhow::Error::msg)?,
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn input(kind: InputKind) -> ScenarioInput {
+        ScenarioInput {
+            description: "test input".to_owned(),
+            kind,
+            required: true,
+            default: None,
+        }
+    }
+
+    #[test]
+    fn keeps_plain_string_inputs_as_strings() {
+        let definitions = BTreeMap::from([("slot".to_owned(), input(InputKind::String))]);
+        let arguments = InputArguments {
+            variables: vec!["slot=123".to_owned()],
+            variable_files: Vec::new(),
+        };
+        let values = parse_input_arguments(&arguments, &definitions).expect("input parses");
+        assert_eq!(
+            values.get("slot"),
+            Some(&serde_json::Value::String("123".to_owned()))
+        );
+    }
+
+    #[test]
+    fn parses_quantity_inputs_as_json_when_possible() {
+        let definitions = BTreeMap::from([("count".to_owned(), input(InputKind::Quantity))]);
+        let arguments = InputArguments {
+            variables: vec!["count=1".to_owned()],
+            variable_files: Vec::new(),
+        };
+        let values = parse_input_arguments(&arguments, &definitions).expect("input parses");
+        assert_eq!(values.get("count"), Some(&serde_json::json!(1)));
+    }
 }

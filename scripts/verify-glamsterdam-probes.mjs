@@ -92,7 +92,7 @@ async function verifyPayloadBid(status, expectedExit, expectedAssertions) {
     const parentHash = "0xaaa";
     const parentRoot = "0xbbb";
     const proposerPubkey = "0xccc";
-    const result = await run(binary, ["probe", "run", "glamsterdam/gloas-execution-payload-bid", "--baseline", `http://127.0.0.1:${baseline.address().port}`, "--candidate", `http://127.0.0.1:${candidate.address().port}`, "--var", `slot=${JSON.stringify(slot)}`, "--var", `parent_hash=${parentHash}`, "--var", `parent_root=${parentRoot}`, "--var", `proposer_pubkey=${proposerPubkey}`]);
+    const result = await run(binary, ["probe", "run", "glamsterdam/gloas-execution-payload-bid", "--baseline", `http://127.0.0.1:${baseline.address().port}`, "--candidate", `http://127.0.0.1:${candidate.address().port}`, "--var", `slot=${slot}`, "--var", `parent_hash=${parentHash}`, "--var", `parent_root=${parentRoot}`, "--var", `proposer_pubkey=${proposerPubkey}`]);
     if (result.code !== expectedExit) throw new Error(`Expected payload-bid exit code ${expectedExit}. Got ${result.code}. ${result.stderr}`);
     const report = JSON.parse(result.stdout);
     const failures = report.actions?.[0]?.assertion_failures ?? [];
