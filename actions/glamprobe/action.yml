@@ -4,6 +4,18 @@ inputs:
   scenario:
     description: Path to the YAML scenario.
     required: true
+  command:
+    description: CLI command. Use run for one case or fuzz for the YAML fuzz block.
+    required: false
+    default: run
+  cases:
+    description: Optional fuzz case count override. Applies only when command is fuzz.
+    required: false
+    default: ""
+  seed:
+    description: Optional deterministic fuzz seed override. Applies only when command is fuzz.
+    required: false
+    default: ""
   baseline-url:
     description: Baseline JSON-RPC endpoint URL.
     required: true
@@ -41,6 +53,9 @@ runs:
         CANDIDATE_HEADERS: ${{ inputs.candidate-headers }}
         VARIABLES: ${{ inputs.variables }}
         VARIABLE_FILES: ${{ inputs.variable-files }}
+        COMMAND: ${{ inputs.command }}
+        CASES: ${{ inputs.cases }}
+        SEED: ${{ inputs.seed }}
       run: |
         baseline_args=()
         candidate_args=()
@@ -57,8 +72,17 @@ runs:
         while IFS= read -r variable_file; do
           [ -z "$variable_file" ] || variable_args+=(--var-file "$variable_file")
         done <<< "$VARIABLE_FILES"
+        case "$COMMAND" in
+          run) command_args=(run "${{ inputs.scenario }}") ;;
+          fuzz)
+            command_args=(fuzz "${{ inputs.scenario }}")
+            [ -z "$CASES" ] || command_args+=(--cases "$CASES")
+            [ -z "$SEED" ] || command_args+=(--seed "$SEED")
+            ;;
+          *) echo "command must be run or fuzz" >&2; exit 1 ;;
+        esac
         set +e
-        cargo run --manifest-path "$GITHUB_ACTION_PATH/../../Cargo.toml" -- run "${{ inputs.scenario }}" \
+        cargo run --manifest-path "$GITHUB_ACTION_PATH/../../Cargo.toml" -- "${command_args[@]}" \
           --baseline-url "${{ inputs.baseline-url }}" \
           --candidate-url "${{ inputs.candidate-url }}" \
           --output "${{ inputs.report-path }}" \
@@ -67,7 +91,8 @@ runs:
         status=$?
         echo "status=$status" >> "$GITHUB_OUTPUT"
         exit 0
-    - shell: bash
+    - if: steps.run.outputs.status == '0' || steps.run.outputs.status == '2'
+      shell: bash
       run: node "$GITHUB_ACTION_PATH/report.mjs" "${{ inputs.report-path }}"
     - if: steps.run.outputs.status != '0'
       shell: bash

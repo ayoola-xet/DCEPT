@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -7,6 +7,10 @@ const directory = await mkdtemp(join(tmpdir(), "glamprobe-action-"));
 const reportPath = join(directory, "report.json");
 
 try {
+  const action = await readFile("actions/glamprobe/action.yml", "utf8");
+  if (!action.includes("command:") || !action.includes("variables:") || !action.includes("variable-files:") || !action.includes("status == '2'")) {
+    throw new Error("GitHub Action does not define the required run, fuzz, input, and report behavior.");
+  }
   await writeFile(reportPath, JSON.stringify({
     actions: [{
       id: "capabilities",

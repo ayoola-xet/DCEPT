@@ -258,7 +258,7 @@ See [apps/web/DEPLOYMENT.md](apps/web/DEPLOYMENT.md) for the production deployme
 
 ## CI and downstream adapters
 
-Use the local GitHub Action from `actions/glamprobe` to run a scenario in a workflow. It writes a JSON report and adds one warning annotation for each difference.
+Use the local GitHub Action from `actions/glamprobe` to run a scenario in a workflow. It writes a JSON report and adds one warning annotation for each difference or target assertion failure. Pass newline-separated `variables` or `variable-files` inputs for typed probe values. Set `command: fuzz` to run the YAML fuzz block. You can also set `cases` and `seed`.
 
 `adapters` contains commands for ethers.js, viem, Foundry, and Hardhat. Use an adapter when you must test the same RPC operation through the downstream tool, not only through raw JSON-RPC.
 
