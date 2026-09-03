@@ -7,6 +7,7 @@ import { defaultGlamsterdamProbe } from "@/lib/glamsterdam-probes";
 type Target = { id: string; name: string; created_at: string };
 type Scenario = { id: string; name: string; checksum: string; updated_at: string };
 type Run = { id: string; status: string; scenario_name: string; created_at: string; action_count: number };
+type RunDetail = { id: string; status: string; created_at: string; completed_at: string | null; error_message: string | null; report_json: unknown | null };
 type CloudData = { targets: Target[]; scenarios: Scenario[]; runs: Run[] };
 
 export function CloudConsole() {
@@ -21,6 +22,7 @@ export function CloudConsole() {
   const [runScenario, setRunScenario] = useState("");
   const [baselineTarget, setBaselineTarget] = useState("");
   const [candidateTarget, setCandidateTarget] = useState("");
+  const [selectedRun, setSelectedRun] = useState<RunDetail | null>(null);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -100,6 +102,31 @@ export function CloudConsole() {
     }
   }
 
+  async function openRun(id: string) {
+    setMessage("");
+    try {
+      const response = await fetch(`/api/v1/runs/${id}`);
+      if (!response.ok) throw new Error(await responseMessage(response));
+      const body = await response.json() as { run: RunDetail };
+      setSelectedRun(body.run);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Run details could not load.");
+    }
+  }
+
+  async function cancelRun(id: string) {
+    setMessage("");
+    try {
+      const response = await fetch(`/api/v1/runs/${id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error(await responseMessage(response));
+      setMessage("Cloud run canceled.");
+      if (selectedRun?.id === id) setSelectedRun((run) => run ? { ...run, status: "canceled" } : null);
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Cloud run could not be canceled.");
+    }
+  }
+
   if (state === "loading") return <section className="panel cloud-console"><p className="empty-report">Loading Cloud workspace.</p></section>;
   if (state === "signed-out") return <section className="panel cloud-console"><h2>Connect a wallet for Cloud history</h2><p className="empty-report">Use the Cloud sign-in control. Local mode does not need a wallet.</p></section>;
   if (state === "error") return <section className="panel cloud-console"><h2>Cloud is not ready</h2><p className="form-error">{message}</p></section>;
@@ -136,8 +163,9 @@ export function CloudConsole() {
 
       <section className="panel cloud-runs">
         <div><span className="eyebrow">Recent Cloud runs</span><h2>Run history</h2></div>
-        {data.runs.length === 0 ? <p className="empty-report">No Cloud runs yet.</p> : <div className="run-list">{data.runs.map((run) => <article className="run-row" key={run.id}><span className={`status-dot ${run.status === "completed" ? "passed" : "finding"}`} /><div><strong>{run.scenario_name}</strong><span>{run.action_count} actions</span></div><span className="status-label">{run.status}</span><time>{new Date(run.created_at).toLocaleString()}</time></article>)}</div>}
+        {data.runs.length === 0 ? <p className="empty-report">No Cloud runs yet.</p> : <div className="run-list">{data.runs.map((run) => <article className="run-row" key={run.id}><span className={`status-dot ${run.status === "completed" ? "passed" : "finding"}`} /><div><strong>{run.scenario_name}</strong><span>{run.action_count} actions</span></div><span className="status-label">{run.status}</span><div className="cloud-run-actions"><button className="text-button" type="button" onClick={() => void openRun(run.id)}>View</button>{["queued", "running"].includes(run.status) && <button className="text-button warning-button" type="button" onClick={() => void cancelRun(run.id)}>Cancel</button>}</div></article>)}</div>}
       </section>
+      {selectedRun && <section className="panel cloud-run-detail"><div><span className="eyebrow">Run detail</span><h2>{selectedRun.status}</h2></div>{selectedRun.error_message && <p className="form-error">{selectedRun.error_message}</p>}{selectedRun.report_json ? <pre>{JSON.stringify(selectedRun.report_json, null, 2)}</pre> : <p className="empty-report">The run has no report yet.</p>}</section>}
     </section>
   );
 }
