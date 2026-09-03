@@ -6,6 +6,13 @@ It adds teams, wallet login, encrypted targets, API tokens, quotas, a dashboard,
 
 It is not part of the Rust build. A local user does not need this directory, Node.js, a database, login, or cloud credentials to use the GlamProbe CLI.
 
+## Cloud console
+
+After Cloud sign-in, open `/runs`. The console lets a team save encrypted
+target settings, save versioned scenarios, queue a durable run, and view recent
+run status. These functions need the Cloud environment values and database
+schema. They do not affect the public local-run page.
+
 ## No-login local-run page
 
 The `/` page is a public local-run workspace. It does not need `.env.local`.
