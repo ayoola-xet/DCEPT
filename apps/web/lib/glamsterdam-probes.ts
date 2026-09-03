@@ -197,6 +197,13 @@ actions:
     headers:
       Accept: application/json
       Eth-Consensus-Version: gloas
+    expect:
+      baseline:
+        - path: /status
+          equals: 200
+      candidate:
+        - path: /status
+          equals: 200
 `,
   },
 ] as const;

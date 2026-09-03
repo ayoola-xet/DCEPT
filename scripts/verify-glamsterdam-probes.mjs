@@ -27,8 +27,9 @@ function rpcServer(result) {
   return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server)));
 }
 
-function httpServer(status) {
-  const server = createServer((_request, response) => {
+function httpServer(status, onRequest = () => {}) {
+  const server = createServer((request, response) => {
+    onRequest(request);
     response.statusCode = status;
     response.setHeader("content-type", "application/json");
     response.end(JSON.stringify({ status }));
@@ -80,6 +81,33 @@ async function verifyBuilderStatus(status, expectedExit, expectedAssertions) {
   }
 }
 
+async function verifyPayloadBid(status, expectedExit, expectedAssertions) {
+  const received = [];
+  const capture = (request) => received.push({ path: request.url, consensusVersion: request.headers["eth-consensus-version"] });
+  const baseline = await httpServer(status, capture);
+  const candidate = await httpServer(status, capture);
+  try {
+    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "glamprobe.exe" : "glamprobe");
+    const slot = "123";
+    const parentHash = "0xaaa";
+    const parentRoot = "0xbbb";
+    const proposerPubkey = "0xccc";
+    const result = await run(binary, ["probe", "run", "glamsterdam/gloas-execution-payload-bid", "--baseline", `http://127.0.0.1:${baseline.address().port}`, "--candidate", `http://127.0.0.1:${candidate.address().port}`, "--var", `slot=${JSON.stringify(slot)}`, "--var", `parent_hash=${parentHash}`, "--var", `parent_root=${parentRoot}`, "--var", `proposer_pubkey=${proposerPubkey}`]);
+    if (result.code !== expectedExit) throw new Error(`Expected payload-bid exit code ${expectedExit}. Got ${result.code}. ${result.stderr}`);
+    const report = JSON.parse(result.stdout);
+    const failures = report.actions?.[0]?.assertion_failures ?? [];
+    if (failures.length !== expectedAssertions) throw new Error(`Expected ${expectedAssertions} payload-bid assertion failures. Got ${failures.length}.`);
+    if (received.length !== 2) throw new Error("Payload-bid probe did not query both targets.");
+    const expectedPath = `/eth/v1/builder/execution_payload_bid/${slot}/${parentHash}/${parentRoot}/${proposerPubkey}`;
+    if (received.some((request) => request.path !== expectedPath || request.consensusVersion !== "gloas")) {
+      throw new Error("Payload-bid probe did not send the required Gloas request path and header.");
+    }
+  } finally {
+    baseline.close();
+    candidate.close();
+  }
+}
+
 async function verifyFixtureReplay() {
   let baselineCalls = 0;
   let candidateCalls = 0;
@@ -122,5 +150,7 @@ await verify(requiredMethods, 0, 0);
 await verify(["engine_newPayloadV4"], 2, requiredMethods.length * 2);
 await verifyBuilderStatus(200, 0, 0);
 await verifyBuilderStatus(503, 2, 2);
+await verifyPayloadBid(200, 0, 0);
+await verifyPayloadBid(404, 2, 2);
 await verifyFixtureReplay();
 console.log("Glamsterdam probe invariant passed.");
