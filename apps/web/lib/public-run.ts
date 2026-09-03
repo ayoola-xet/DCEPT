@@ -3,8 +3,9 @@ import type { HostedAction, HostedScenario } from "./hosted-scenario";
 
 export type PublicTarget = { endpoint: string };
 export type PublicOperation = { response: unknown | null; error: string | null; duration_ms: number };
-export type PublicActionReport = { id: string; baseline: PublicOperation; candidate: PublicOperation; diffs: unknown[] };
-export type PublicRunReport = { schema_version: 1; scenario_name: string; actions: PublicActionReport[]; has_findings: boolean };
+export type PublicAssertionFailure = { target: "baseline" | "candidate"; path: string; rule: "equals" | "contains_all"; expected: unknown; actual: unknown | null };
+export type PublicActionReport = { id: string; baseline: PublicOperation; candidate: PublicOperation; diffs: unknown[]; assertion_failures: PublicAssertionFailure[] };
+export type PublicRunReport = { schema_version: 1; scenario_name: string; probe?: HostedScenario["probe"]; actions: PublicActionReport[]; has_findings: boolean };
 export type Comparator = (baseline: unknown, candidate: unknown, comparison: HostedAction["comparison"]) => unknown[];
 
 /** Run a normal scenario without user storage, login, or target credentials. */
@@ -29,9 +30,13 @@ export async function runPublicScenario(
       : baselineResult.error === candidateResult.error
         ? []
         : [{ path: "", kind: "value_mismatch", baseline: baselineResult, candidate: candidateResult }];
-    actions.push({ id: action.id, baseline: baselineResult, candidate: candidateResult, diffs });
+    const assertion_failures = [
+      ...evaluateAssertions("baseline", baselineResult, action.expect.baseline),
+      ...evaluateAssertions("candidate", candidateResult, action.expect.candidate),
+    ];
+    actions.push({ id: action.id, baseline: baselineResult, candidate: candidateResult, diffs, assertion_failures });
   }
-  return { schema_version: 1, scenario_name: scenario.name, actions, has_findings: actions.some((action) => action.diffs.length > 0) };
+  return { schema_version: 1, scenario_name: scenario.name, probe: scenario.probe, actions, has_findings: actions.some((action) => action.diffs.length > 0 || action.assertion_failures.length > 0) };
 }
 
 async function executeOperation(action: HostedAction, target: PublicTarget, side: "baseline" | "candidate"): Promise<PublicOperation> {
@@ -74,4 +79,38 @@ function tryJson(value: string): unknown {
 
 function isCredentialHeader(name: string): boolean {
   return /authorization|api[-_]?key|token|secret|cookie|credential|password/i.test(name);
+}
+
+function evaluateAssertions(
+  target: "baseline" | "candidate",
+  operation: PublicOperation,
+  assertions: HostedAction["expect"]["baseline"],
+): PublicAssertionFailure[] {
+  const failures: PublicAssertionFailure[] = [];
+  for (const assertion of assertions) {
+    const actual = valueAtPointer(operation.response, assertion.path);
+    if (assertion.equals !== undefined) {
+      if (JSON.stringify(actual) !== JSON.stringify(assertion.equals)) failures.push({ target, path: assertion.path, rule: "equals", expected: assertion.equals, actual });
+      continue;
+    }
+    for (const expected of assertion.contains_all) {
+      const contains = Array.isArray(actual) ? actual.some((value) => JSON.stringify(value) === JSON.stringify(expected))
+        : typeof actual === "string" && typeof expected === "string" && actual.includes(expected);
+      if (!contains) failures.push({ target, path: assertion.path, rule: "contains_all", expected, actual });
+    }
+  }
+  return failures;
+}
+
+function valueAtPointer(value: unknown, pointer: string): unknown | null {
+  if (value === null || value === undefined) return null;
+  if (pointer === "") return value;
+  if (!pointer.startsWith("/")) return null;
+  let current: unknown = value;
+  for (const token of pointer.slice(1).split("/").map((part) => part.replaceAll("~1", "/").replaceAll("~0", "~"))) {
+    if (Array.isArray(current)) current = current[Number(token)];
+    else if (typeof current === "object" && current !== null) current = (current as Record<string, unknown>)[token];
+    else return null;
+  }
+  return current ?? null;
 }

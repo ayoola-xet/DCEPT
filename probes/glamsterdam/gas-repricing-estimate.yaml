@@ -1,0 +1,43 @@
+version: 1
+name: glamsterdam-gas-repricing-estimate
+description: Compare estimation of a minimal value transfer and an access-list transfer on two targets at the same post-fork block context.
+probe:
+  upgrade: glamsterdam
+  eips: ["EIP-2780", "EIP-7981", "EIP-8037", "EIP-8038"]
+  category: gas_repricing
+  risk: high
+  sources:
+    - https://eips.ethereum.org/EIPS/eip-8007
+inputs:
+  sender:
+    description: A funded disposable account on both targets.
+    kind: address
+    required: true
+  recipient:
+    description: An account with the same state on both targets.
+    kind: address
+    required: true
+  block:
+    description: A post-Glamsterdam block number or stable block tag shared by both targets.
+    kind: block_tag
+    default: latest
+actions:
+  - kind: rpc
+    id: minimal-value-transfer
+    method: eth_estimateGas
+    params:
+      - from: "{{sender}}"
+        to: "{{recipient}}"
+        value: "0x1"
+      - "{{block}}"
+  - kind: rpc
+    id: access-list-transfer
+    method: eth_estimateGas
+    params:
+      - from: "{{sender}}"
+        to: "{{recipient}}"
+        value: "0x1"
+        accessList:
+          - address: "{{recipient}}"
+            storageKeys: []
+      - "{{block}}"

@@ -1,0 +1,41 @@
+version: 1
+name: glamsterdam-engine-api-surface
+description: Check that two authenticated execution endpoints advertise the Amsterdam Engine API methods required for Glamsterdam block access lists.
+probe:
+  upgrade: glamsterdam
+  eips: ["EIP-7928"]
+  category: engine_api
+  risk: critical
+  sources:
+    - https://eips.ethereum.org/EIPS/eip-7928
+    - https://github.com/ethereum/execution-apis/blob/main/src/engine/amsterdam.md
+actions:
+  - kind: rpc
+    id: advertised-amsterdam-engine-methods
+    method: engine_exchangeCapabilities
+    params:
+      - - engine_newPayloadV5
+        - engine_getPayloadV6
+        - engine_forkchoiceUpdatedV4
+        - engine_getPayloadBodiesByHashV2
+        - engine_getPayloadBodiesByRangeV2
+        - engine_getBlobsV4
+    expect:
+      baseline:
+        - path: /result
+          contains_all:
+            - engine_newPayloadV5
+            - engine_getPayloadV6
+            - engine_forkchoiceUpdatedV4
+            - engine_getPayloadBodiesByHashV2
+            - engine_getPayloadBodiesByRangeV2
+            - engine_getBlobsV4
+      candidate:
+        - path: /result
+          contains_all:
+            - engine_newPayloadV5
+            - engine_getPayloadV6
+            - engine_forkchoiceUpdatedV4
+            - engine_getPayloadBodiesByHashV2
+            - engine_getPayloadBodiesByRangeV2
+            - engine_getBlobsV4

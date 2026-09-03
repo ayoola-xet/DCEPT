@@ -3,6 +3,7 @@
 pub mod compare;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod executor;
+pub mod probes;
 pub mod scenario;
 
 #[cfg(feature = "wasm")]

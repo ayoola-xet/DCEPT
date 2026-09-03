@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { parseHostedScenario } from "@/lib/hosted-scenario";
+import { parseHostedScenario, resolveHostedScenarioInputs } from "@/lib/hosted-scenario";
 import { runPublicScenario } from "@/lib/public-run";
 import { validatePublicTargetUrl } from "@/lib/target-url";
 
@@ -11,6 +11,7 @@ const requestSchema = z.object({
   scenarioYaml: z.string().min(1).max(200_000),
   baseline: z.url(),
   candidate: z.url(),
+  inputs: z.record(z.string(), z.unknown()).default({}),
 });
 const unsafeMethod = /^(eth_send|eth_submit|eth_sign|personal_|wallet_|engine_|admin_|miner_|evm_|hardhat_|anvil_)/;
 
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
       const error = await validatePublicTargetUrl(endpoint);
       if (error) return NextResponse.json({ error }, { status: 400 });
     }
-    const scenario = parseHostedScenario(input.scenarioYaml);
+    const scenario = resolveHostedScenarioInputs(parseHostedScenario(input.scenarioYaml), input.inputs);
     if (scenario.actions.length > 20) return NextResponse.json({ error: "The no-login server runner allows up to 20 actions." }, { status: 400 });
     if (scenario.fuzz) return NextResponse.json({ error: "The no-login server runner does not run fuzz cases. Use the local CLI or GlamProbe Cloud." }, { status: 400 });
     const unsafeAction = scenario.actions.find((action) => action.kind === "rpc" && unsafeMethod.test(action.method));

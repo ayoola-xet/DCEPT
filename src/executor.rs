@@ -6,7 +6,9 @@ use serde_json::{Value, json};
 
 use crate::{
     compare_values,
-    scenario::{Action, FuzzCase, HttpAction, RpcAction, Scenario},
+    scenario::{
+        Action, FuzzCase, HttpAction, ProbeMetadata, ResponseAssertion, RpcAction, Scenario,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -41,6 +43,8 @@ pub struct RunReport {
     pub scenario_name: String,
     pub baseline_target: String,
     pub candidate_target: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub probe: Option<ProbeMetadata>,
     pub actions: Vec<ActionReport>,
     pub has_findings: bool,
 }
@@ -75,6 +79,16 @@ pub struct ActionReport {
     pub baseline: OperationResult,
     pub candidate: OperationResult,
     pub diffs: Vec<crate::compare::Diff>,
+    pub assertion_failures: Vec<AssertionFailure>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssertionFailure {
+    pub target: String,
+    pub path: String,
+    pub rule: String,
+    pub expected: Value,
+    pub actual: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -130,23 +144,80 @@ pub async fn execute_scenario(
                 }),
             }],
         };
+        let mut assertion_failures =
+            evaluate_assertions("baseline", &baseline, &action.expectations().baseline);
+        assertion_failures.extend(evaluate_assertions(
+            "candidate",
+            &candidate,
+            &action.expectations().candidate,
+        ));
         actions.push(ActionReport {
             id: action.id().to_owned(),
             baseline,
             candidate,
             diffs,
+            assertion_failures,
         });
     }
 
-    let has_findings = actions.iter().any(|action| !action.diffs.is_empty());
+    let has_findings = actions
+        .iter()
+        .any(|action| !action.diffs.is_empty() || !action.assertion_failures.is_empty());
     RunReport {
         schema_version: 1,
         scenario_name: scenario.name.clone(),
         baseline_target: targets.baseline.name.clone(),
         candidate_target: targets.candidate.name.clone(),
+        probe: scenario.probe.clone(),
         actions,
         has_findings,
     }
+}
+
+fn evaluate_assertions(
+    target: &str,
+    operation: &OperationResult,
+    assertions: &[ResponseAssertion],
+) -> Vec<AssertionFailure> {
+    let mut failures = Vec::new();
+    for assertion in assertions {
+        let actual = operation
+            .response
+            .as_ref()
+            .and_then(|response| response.pointer(&assertion.path))
+            .cloned();
+        if let Some(expected) = &assertion.equals {
+            if actual.as_ref() != Some(expected) {
+                failures.push(AssertionFailure {
+                    target: target.to_owned(),
+                    path: assertion.path.clone(),
+                    rule: "equals".to_owned(),
+                    expected: expected.clone(),
+                    actual,
+                });
+            }
+            continue;
+        }
+        for required in &assertion.contains_all {
+            let contains = actual.as_ref().is_some_and(|value| match value {
+                Value::Array(values) => values.contains(required),
+                Value::String(value) => required
+                    .as_str()
+                    .is_some_and(|required| value.contains(required)),
+                _ => false,
+            });
+            if !contains {
+                failures.push(AssertionFailure {
+                    target: target.to_owned(),
+                    path: assertion.path.clone(),
+                    rule: "contains_all".to_owned(),
+                    expected: required.clone(),
+                    actual: actual.clone(),
+                });
+            }
+        }
+    }
+    failures
 }
 
 /// Run reproducible generated cases. Cases run in order so that every finding has
@@ -374,5 +445,23 @@ mod tests {
                 .and_then(|value| value.to_str().ok()),
             Some("Bearer token")
         );
+    }
+
+    #[test]
+    fn reports_a_missing_required_engine_capability() {
+        let operation = OperationResult {
+            response: Some(json!({"result": ["engine_newPayloadV4"]})),
+            error: None,
+            duration_ms: 1,
+        };
+        let assertions = vec![ResponseAssertion {
+            path: "/result".to_owned(),
+            equals: None,
+            contains_all: vec![json!("engine_newPayloadV5")],
+        }];
+        let failures = evaluate_assertions("candidate", &operation, &assertions);
+        assert_eq!(failures.len(), 1);
+        assert_eq!(failures[0].target, "candidate");
+        assert_eq!(failures[0].rule, "contains_all");
     }
 }

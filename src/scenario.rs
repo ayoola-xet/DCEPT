@@ -13,13 +13,127 @@ pub struct Scenario {
     pub name: String,
     #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
+    pub probe: Option<ProbeMetadata>,
+    #[serde(default)]
+    pub inputs: BTreeMap<String, ScenarioInput>,
     pub actions: Vec<Action>,
     #[serde(default)]
     pub fuzz: Option<FuzzConfig>,
 }
 
+/// Protocol context that turns a generic scenario into a versioned upgrade probe.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProbeMetadata {
+    pub upgrade: String,
+    pub eips: Vec<String>,
+    pub category: String,
+    pub risk: String,
+    #[serde(default)]
+    pub sources: Vec<String>,
+}
+
+/// A named runtime value needed by a reusable scenario.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScenarioInput {
+    pub description: String,
+    #[serde(default)]
+    pub kind: InputKind,
+    #[serde(default)]
+    pub required: bool,
+    #[serde(default)]
+    pub default: Option<Value>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InputKind {
+    #[default]
+    String,
+    Address,
+    Quantity,
+    BlockTag,
+    Json,
+}
+
 fn default_version() -> u16 {
     1
+}
+
+fn validate_input_name(name: &str) -> Result<(), ScenarioError> {
+    let mut characters = name.chars();
+    let Some(first) = characters.next() else {
+        return Err(ScenarioError::InvalidInputName(name.to_owned()));
+    };
+    if !(first.is_ascii_alphabetic() || first == '_')
+        || !characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
+    {
+        return Err(ScenarioError::InvalidInputName(name.to_owned()));
+    }
+    Ok(())
+}
+
+fn validate_input_value(name: &str, kind: InputKind, value: &Value) -> Result<(), ScenarioError> {
+    let valid = match kind {
+        InputKind::String => value.is_string(),
+        InputKind::Address => value.as_str().is_some_and(is_address),
+        InputKind::Quantity => value.is_number() || value.as_str().is_some_and(is_quantity),
+        InputKind::BlockTag => value.as_str().is_some_and(|value| {
+            matches!(value, "latest" | "safe" | "finalized" | "pending") || is_quantity(value)
+        }),
+        InputKind::Json => true,
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(ScenarioError::InvalidInputValue {
+            name: name.to_owned(),
+            kind,
+        })
+    }
+}
+
+fn is_address(value: &str) -> bool {
+    value.len() == 42
+        && value.starts_with("0x")
+        && value[2..].bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn is_quantity(value: &str) -> bool {
+    value.starts_with("0x")
+        && value.len() > 2
+        && value[2..].bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn resolve_value(value: &mut Value, inputs: &BTreeMap<String, Value>) -> Result<(), ScenarioError> {
+    match value {
+        Value::String(text) => {
+            let Some(name) = text
+                .strip_prefix("{{")
+                .and_then(|value| value.strip_suffix("}}"))
+            else {
+                return Ok(());
+            };
+            let replacement = inputs
+                .get(name)
+                .ok_or_else(|| ScenarioError::UnresolvedInput(name.to_owned()))?;
+            *value = replacement.clone();
+        }
+        Value::Array(items) => {
+            for item in items {
+                resolve_value(item, inputs)?;
+            }
+        }
+        Value::Object(items) => {
+            for item in items.values_mut() {
+                resolve_value(item, inputs)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 impl Scenario {
@@ -41,6 +155,24 @@ impl Scenario {
             return Err(ScenarioError::MissingActions);
         }
 
+        if let Some(probe) = &self.probe {
+            if probe.upgrade.trim().is_empty()
+                || probe.category.trim().is_empty()
+                || probe.risk.trim().is_empty()
+            {
+                return Err(ScenarioError::InvalidProbeMetadata);
+            }
+            if probe.eips.is_empty() || probe.eips.iter().any(|eip| eip.trim().is_empty()) {
+                return Err(ScenarioError::InvalidProbeMetadata);
+            }
+        }
+        for (name, input) in &self.inputs {
+            validate_input_name(name)?;
+            if let Some(default) = &input.default {
+                validate_input_value(name, input.kind, default)?;
+            }
+        }
+
         let mut action_ids = std::collections::BTreeSet::new();
         for action in &self.actions {
             let id = action.id();
@@ -56,6 +188,60 @@ impl Scenario {
             fuzz.validate(self)?;
         }
         Ok(())
+    }
+
+    /// Resolve named input placeholders before the scenario contacts a target.
+    pub fn resolve_inputs(
+        &self,
+        supplied: &BTreeMap<String, Value>,
+    ) -> Result<Self, ScenarioError> {
+        for name in supplied.keys() {
+            if !self.inputs.contains_key(name) {
+                return Err(ScenarioError::UnknownInput(name.clone()));
+            }
+        }
+        let mut values = BTreeMap::new();
+        for (name, input) in &self.inputs {
+            let value = supplied
+                .get(name)
+                .cloned()
+                .or_else(|| input.default.clone());
+            let Some(value) = value else {
+                if input.required {
+                    return Err(ScenarioError::MissingInput(name.clone()));
+                }
+                continue;
+            };
+            validate_input_value(name, input.kind, &value)?;
+            values.insert(name.clone(), value);
+        }
+        let mut resolved = self.clone();
+        for action in &mut resolved.actions {
+            match action {
+                Action::Rpc(action) => {
+                    resolve_value(&mut action.params, &values)?;
+                    if let Some(params) = &mut action.baseline_params {
+                        resolve_value(params, &values)?;
+                    }
+                    if let Some(params) = &mut action.candidate_params {
+                        resolve_value(params, &values)?;
+                    }
+                }
+                Action::Http(action) => {
+                    if let Some(body) = &mut action.body {
+                        resolve_value(body, &values)?;
+                    }
+                    if let Some(body) = &mut action.baseline_body {
+                        resolve_value(body, &values)?;
+                    }
+                    if let Some(body) = &mut action.candidate_body {
+                        resolve_value(body, &values)?;
+                    }
+                }
+            }
+        }
+        resolved.inputs.clear();
+        Ok(resolved)
     }
 
     /// Create reproducible scenario variants from this scenario's fuzz definition.
@@ -154,19 +340,27 @@ impl Action {
         }
     }
 
+    pub fn expectations(&self) -> &TargetExpectations {
+        match self {
+            Self::Rpc(action) => &action.expect,
+            Self::Http(action) => &action.expect,
+        }
+    }
+
     fn validate(&self) -> Result<(), ScenarioError> {
         match self {
             Self::Rpc(action) if action.method.trim().is_empty() => {
-                Err(ScenarioError::MissingRpcMethod(action.id.clone()))
+                return Err(ScenarioError::MissingRpcMethod(action.id.clone()));
             }
             Self::Http(action) if action.method.trim().is_empty() => {
-                Err(ScenarioError::MissingHttpMethod(action.id.clone()))
+                return Err(ScenarioError::MissingHttpMethod(action.id.clone()));
             }
             Self::Http(action) if !action.path.starts_with('/') => {
-                Err(ScenarioError::InvalidHttpPath(action.id.clone()))
+                return Err(ScenarioError::InvalidHttpPath(action.id.clone()));
             }
-            _ => Ok(()),
+            _ => {}
         }
+        self.expectations().validate(self.id())
     }
 }
 
@@ -183,6 +377,8 @@ pub struct RpcAction {
     pub candidate_params: Option<Value>,
     #[serde(default)]
     pub comparison: Comparison,
+    #[serde(default)]
+    pub expect: TargetExpectations,
 }
 
 fn empty_array() -> Value {
@@ -209,6 +405,49 @@ pub struct HttpAction {
     pub candidate_body: Option<Value>,
     #[serde(default)]
     pub comparison: Comparison,
+    #[serde(default)]
+    pub expect: TargetExpectations,
+}
+
+/// Required response properties for each target. These checks detect a shared
+/// missing feature that ordinary target-to-target comparison cannot detect.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct TargetExpectations {
+    #[serde(default)]
+    pub baseline: Vec<ResponseAssertion>,
+    #[serde(default)]
+    pub candidate: Vec<ResponseAssertion>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResponseAssertion {
+    pub path: String,
+    #[serde(default)]
+    pub equals: Option<Value>,
+    #[serde(default)]
+    pub contains_all: Vec<Value>,
+}
+
+impl TargetExpectations {
+    fn validate(&self, action: &str) -> Result<(), ScenarioError> {
+        for assertion in self.baseline.iter().chain(&self.candidate) {
+            if !assertion.path.is_empty() && !assertion.path.starts_with('/') {
+                return Err(ScenarioError::InvalidAssertionPath {
+                    action: action.to_owned(),
+                    path: assertion.path.clone(),
+                });
+            }
+            if assertion.equals.is_some() == !assertion.contains_all.is_empty() {
+                return Err(ScenarioError::InvalidAssertion {
+                    action: action.to_owned(),
+                    path: assertion.path.clone(),
+                });
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -388,6 +627,22 @@ pub enum ScenarioError {
     MissingName,
     #[error("scenario must contain at least one action")]
     MissingActions,
+    #[error("probe metadata needs an upgrade, EIP list, category, and risk")]
+    InvalidProbeMetadata,
+    #[error(
+        "input name '{0}' must use letters, numbers, and underscores, and cannot start with a number"
+    )]
+    InvalidInputName(String),
+    #[error("input '{name}' has an invalid {kind:?} value")]
+    InvalidInputValue { name: String, kind: InputKind },
+    #[error("input '{0}' is required")]
+    MissingInput(String),
+    #[error("input '{0}' is not declared by this scenario")]
+    UnknownInput(String),
+    #[error("input '{0}' is not resolved")]
+    UnresolvedInput(String),
+    #[error("built-in probe '{0}' does not exist")]
+    UnknownBuiltInProbe(String),
     #[error("each action needs an id")]
     MissingActionId,
     #[error("action id '{0}' is duplicated")]
@@ -398,6 +653,12 @@ pub enum ScenarioError {
     MissingHttpMethod(String),
     #[error("HTTP action '{0}' must use a path that starts with '/'")]
     InvalidHttpPath(String),
+    #[error("assertion for action '{action}' has invalid JSON pointer path '{path}'")]
+    InvalidAssertionPath { action: String, path: String },
+    #[error(
+        "assertion for action '{action}' at '{path}' needs exactly one of equals or contains_all"
+    )]
+    InvalidAssertion { action: String, path: String },
     #[error("fuzz configuration is required")]
     MissingFuzzConfiguration,
     #[error("fuzz cases must be greater than zero")]
@@ -484,5 +745,77 @@ fuzz:
         let first = scenario.fuzz_cases(2, 7).expect("valid fuzz cases");
         let second = scenario.fuzz_cases(2, 7).expect("valid fuzz cases");
         assert_eq!(first[0].mutations[0].value, second[0].mutations[0].value);
+    }
+
+    #[test]
+    fn resolves_typed_inputs_without_leaving_secret_values_in_the_scenario() {
+        let scenario = Scenario::from_yaml(
+            r#"
+name: typed-inputs
+inputs:
+  sender:
+    description: A funded test account.
+    kind: address
+    required: true
+  block:
+    description: A stable block tag.
+    kind: block_tag
+    default: finalized
+actions:
+  - kind: rpc
+    id: estimate
+    method: eth_estimateGas
+    params: [{"from": "{{sender}}"}, "{{block}}"]
+"#,
+        )
+        .expect("valid scenario");
+        let inputs = BTreeMap::from([(
+            "sender".to_owned(),
+            Value::String("0x0000000000000000000000000000000000000001".to_owned()),
+        )]);
+        let resolved = scenario.resolve_inputs(&inputs).expect("inputs resolve");
+        let Action::Rpc(action) = &resolved.actions[0] else {
+            panic!("expected RPC action");
+        };
+        assert_eq!(
+            action.params.pointer("/0/from"),
+            Some(&Value::String(
+                "0x0000000000000000000000000000000000000001".to_owned()
+            ))
+        );
+        assert_eq!(
+            action.params.pointer("/1"),
+            Some(&Value::String("finalized".to_owned()))
+        );
+        assert!(resolved.inputs.is_empty());
+    }
+
+    #[test]
+    fn rejects_missing_or_unknown_inputs() {
+        let scenario = Scenario::from_yaml(
+            r#"
+name: needs-input
+inputs:
+  payload:
+    description: A payload fixture.
+    kind: json
+    required: true
+actions:
+  - kind: rpc
+    id: check
+    method: engine_newPayloadV5
+    params: ["{{payload}}"]
+"#,
+        )
+        .expect("valid scenario");
+        assert!(matches!(
+            scenario.resolve_inputs(&BTreeMap::new()),
+            Err(ScenarioError::MissingInput(_))
+        ));
+        let inputs = BTreeMap::from([("wrong".to_owned(), Value::Null)]);
+        assert!(matches!(
+            scenario.resolve_inputs(&inputs),
+            Err(ScenarioError::UnknownInput(_))
+        ));
     }
 }

@@ -16,8 +16,9 @@ type StoredRun = {
 
 type Target = { endpoint: string; headers: Record<string, string> };
 type Operation = { response: unknown | null; error: string | null; duration_ms: number };
-export type RunReport = { schema_version: 1; scenario_name: string; actions: ActionReport[]; fuzz?: { seed: number; cases: FuzzCaseReport[] }; has_findings: boolean };
-type ActionReport = { id: string; baseline: Operation; candidate: Operation; diffs: unknown[] };
+export type RunReport = { schema_version: 1; scenario_name: string; probe?: HostedScenario["probe"]; actions: ActionReport[]; fuzz?: { seed: number; cases: FuzzCaseReport[] }; has_findings: boolean };
+type AssertionFailure = { target: "baseline" | "candidate"; path: string; rule: "equals" | "contains_all"; expected: unknown; actual: unknown | null };
+type ActionReport = { id: string; baseline: Operation; candidate: Operation; diffs: unknown[]; assertion_failures: AssertionFailure[] };
 type FuzzCaseReport = { index: number; mutations: unknown[]; actions: ActionReport[]; has_findings: boolean };
 
 export async function prepareRun(runId: string): Promise<{ actionCount: number; canceled: boolean }> {
@@ -48,12 +49,12 @@ export async function executeBatch(runId: string, startIndex: number): Promise<{
     if (report.fuzz) {
       const fuzzCase = report.fuzz.cases[caseIndex];
       fuzzCase.actions[actionIndex] = actionReport;
-      fuzzCase.has_findings = fuzzCase.actions.some((action) => action.diffs.length > 0);
+      fuzzCase.has_findings = fuzzCase.actions.some(hasFinding);
     } else {
       report.actions[actionIndex] = actionReport;
     }
   }
-  report.has_findings = report.fuzz ? report.fuzz.cases.some((fuzzCase) => fuzzCase.has_findings) : report.actions.some((action) => action.diffs.length > 0);
+  report.has_findings = report.fuzz ? report.fuzz.cases.some((fuzzCase) => fuzzCase.has_findings) : report.actions.some(hasFinding);
   await database()`UPDATE runs SET report_json = ${JSON.stringify(report)}::jsonb WHERE id = ${runId} AND status = 'running'`;
   return { nextIndex: end, done: end === actions.length * fuzzCases.length, canceled: false };
 }
@@ -101,7 +102,11 @@ async function executeAction(action: HostedAction, baseline: Target, candidate: 
   const diffs = baselineResult.response !== null && candidateResult.response !== null
     ? compareJson(baselineResult.response, candidateResult.response, action.comparison)
     : baselineResult.error === candidateResult.error ? [] : [{ path: "", kind: "value_mismatch", baseline: baselineResult, candidate: candidateResult }];
-  return { id: action.id, baseline: baselineResult, candidate: candidateResult, diffs };
+  const assertion_failures = [
+    ...evaluateAssertions("baseline", baselineResult, action.expect.baseline),
+    ...evaluateAssertions("candidate", candidateResult, action.expect.candidate),
+  ];
+  return { id: action.id, baseline: baselineResult, candidate: candidateResult, diffs, assertion_failures };
 }
 
 async function executeOperation(action: HostedAction, target: Target, side: "baseline" | "candidate"): Promise<Operation> {
@@ -136,6 +141,44 @@ function tryJson(value: string): unknown {
   try { return JSON.parse(value); } catch { return value; }
 }
 
+function hasFinding(action: ActionReport): boolean {
+  return action.diffs.length > 0 || (action.assertion_failures?.length ?? 0) > 0;
+}
+
+function evaluateAssertions(
+  target: "baseline" | "candidate",
+  operation: Operation,
+  assertions: HostedAction["expect"]["baseline"],
+): AssertionFailure[] {
+  const failures: AssertionFailure[] = [];
+  for (const assertion of assertions) {
+    const actual = valueAtPointer(operation.response, assertion.path);
+    if (assertion.equals !== undefined) {
+      if (JSON.stringify(actual) !== JSON.stringify(assertion.equals)) failures.push({ target, path: assertion.path, rule: "equals", expected: assertion.equals, actual });
+      continue;
+    }
+    for (const expected of assertion.contains_all) {
+      const contains = Array.isArray(actual) ? actual.some((value) => JSON.stringify(value) === JSON.stringify(expected))
+        : typeof actual === "string" && typeof expected === "string" && actual.includes(expected);
+      if (!contains) failures.push({ target, path: assertion.path, rule: "contains_all", expected, actual });
+    }
+  }
+  return failures;
+}
+
+function valueAtPointer(value: unknown | null, pointer: string): unknown | null {
+  if (value === null) return null;
+  if (pointer === "") return value;
+  if (!pointer.startsWith("/")) return null;
+  let current: unknown = value;
+  for (const token of pointer.slice(1).split("/").map((part) => part.replaceAll("~1", "/").replaceAll("~0", "~"))) {
+    if (Array.isArray(current)) current = current[Number(token)];
+    else if (typeof current === "object" && current !== null) current = (current as Record<string, unknown>)[token];
+    else return null;
+  }
+  return current ?? null;
+}
+
 type GeneratedFuzzCase = { scenario: HostedScenario; mutations: unknown[] };
 
 function generatedCases(scenario: HostedScenario): GeneratedFuzzCase[] {
@@ -159,8 +202,8 @@ function generatedCases(scenario: HostedScenario): GeneratedFuzzCase[] {
 }
 
 function initialReport(scenario: HostedScenario, cases: GeneratedFuzzCase[]): RunReport {
-  if (!scenario.fuzz) return { schema_version: 1, scenario_name: scenario.name, actions: [], has_findings: false };
-  return { schema_version: 1, scenario_name: scenario.name, actions: [], has_findings: false, fuzz: {
+  if (!scenario.fuzz) return { schema_version: 1, scenario_name: scenario.name, probe: scenario.probe, actions: [], has_findings: false };
+  return { schema_version: 1, scenario_name: scenario.name, probe: scenario.probe, actions: [], has_findings: false, fuzz: {
     seed: scenario.fuzz.seed,
     cases: cases.map((fuzzCase, index) => ({ index, mutations: fuzzCase.mutations, actions: [], has_findings: false })),
   } };

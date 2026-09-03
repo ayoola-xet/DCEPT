@@ -41,6 +41,7 @@ authenticated endpoints, fuzzing, or write tests.
 - Apply absolute numeric tolerance to JSON numbers and Ethereum hex quantities.
 - Write machine-readable JSON reports.
 - Return exit code `2` when it finds a difference.
+- Run built-in Glamsterdam probes with versioned EIP metadata and typed inputs.
 
 ## Install
 
@@ -131,6 +132,35 @@ glamprobe run scenario.yaml \
 ```
 
 The CLI prints the report to standard output. It exits with `0` when there are no findings, `2` when it finds differences, and `1` for a command error.
+
+## Glamsterdam probe pack
+
+GlamProbe includes built-in probes for the current Glamsterdam devnet scope.
+They cover the Amsterdam Engine API surface, EIP-7928 block access list
+retrieval and validation, and EIP-2780/EIP-7981/EIP-8037/EIP-8038 gas estimates.
+
+```sh
+glamprobe probe list
+glamprobe probe show glamsterdam/engine-api-surface
+```
+
+Run a built-in probe with the same target options as `glamprobe run`.
+
+```sh
+glamprobe probe run glamsterdam/gas-repricing-estimate \
+  --baseline https://baseline-rpc.example \
+  --candidate https://candidate-rpc.example \
+  --var sender=0x0000000000000000000000000000000000000001 \
+  --var recipient=0x0000000000000000000000000000000000000002 \
+  --var block=0x1234
+```
+
+Use targets with the same chain state and a post-fork block. Engine API probes
+need a JWT header on each target. See [probes/README.md](probes/README.md) for
+probe requirements and fixture use.
+
+Each probe can include target assertions. Assertions fail when a target misses a
+required protocol capability, even when both target responses are identical.
 
 ## Fuzzing and minimization
 
