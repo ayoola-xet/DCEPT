@@ -1,6 +1,10 @@
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{Value, json};
 use thiserror::Error;
+
+use crate::scenario::{
+    Action, Comparison, ResponseAssertion, RpcAction, Scenario, TargetExpectations,
+};
 
 /// Summary of an official execution-spec Engine API fixture case.
 #[derive(Debug, Clone, Serialize)]
@@ -55,9 +59,95 @@ pub fn new_payload_v5_params(
     if version != 5 {
         return Err(FixtureError::UnsupportedEngineVersion(version));
     }
+    engine_new_payload_params(directive)
+}
+
+/// Build a scenario that replays each Engine API directive in one fixture case.
+///
+/// The targets must already run with the fixture network, genesis header, and
+/// pre-state. GlamProbe does not create or configure nodes.
+pub fn engine_fixture_scenario(source: &str, fixture_case: &str) -> Result<Scenario, FixtureError> {
+    let root: Value = serde_json::from_str(source)
+        .map_err(|error| FixtureError::InvalidJson(error.to_string()))?;
+    let fixture = root
+        .as_object()
+        .ok_or(FixtureError::InvalidRoot)?
+        .get(fixture_case)
+        .ok_or_else(|| FixtureError::UnknownCase(fixture_case.to_owned()))?;
+    let actions = engine_payloads(fixture)?
+        .iter()
+        .enumerate()
+        .map(|(index, directive)| fixture_action(index, directive))
+        .collect::<Result<Vec<_>, _>>()?;
+    let scenario = Scenario {
+        version: 1,
+        name: format!("fixture-{fixture_case}"),
+        description: Some(format!(
+            "Replay Engine API directives from fixture case '{fixture_case}'."
+        )),
+        probe: None,
+        inputs: Default::default(),
+        actions,
+        fuzz: None,
+    };
+    scenario
+        .validate()
+        .map_err(|error| FixtureError::Scenario(error.to_string()))?;
+    Ok(scenario)
+}
+
+fn fixture_action(index: usize, directive: &Value) -> Result<Action, FixtureError> {
+    let version = engine_version(directive)?;
+    let expectations = fixture_expectations(directive);
+    Ok(Action::Rpc(RpcAction {
+        id: format!("new-payload-{index}-v{version}"),
+        method: format!("engine_newPayloadV{version}"),
+        params: engine_new_payload_params(directive)?,
+        baseline_params: None,
+        candidate_params: None,
+        comparison: Comparison::default(),
+        expect: expectations,
+    }))
+}
+
+fn fixture_expectations(directive: &Value) -> TargetExpectations {
+    let assertion = if let Some(error_code) = field(directive, &["errorCode", "error_code"]) {
+        ResponseAssertion {
+            path: "/error/code".to_owned(),
+            equals: Some(error_code.clone()),
+            contains_all: Vec::new(),
+            has_keys: Vec::new(),
+        }
+    } else {
+        let status = if field(directive, &["validationError", "validation_error"]).is_some() {
+            "INVALID"
+        } else {
+            "VALID"
+        };
+        ResponseAssertion {
+            path: "/result/status".to_owned(),
+            equals: Some(json!(status)),
+            contains_all: Vec::new(),
+            has_keys: Vec::new(),
+        }
+    };
+    TargetExpectations {
+        baseline: vec![assertion.clone()],
+        candidate: vec![assertion],
+    }
+}
+
+fn engine_new_payload_params(directive: &Value) -> Result<Value, FixtureError> {
+    let version = engine_version(directive)?;
+    if !(1..=5).contains(&version) {
+        return Err(FixtureError::UnsupportedEngineVersion(version));
+    }
     let payload = field(directive, &["executionPayload", "execution_payload"])
         .ok_or_else(|| FixtureError::MissingField("executionPayload".to_owned()))?
         .clone();
+    if version <= 2 {
+        return Ok(Value::Array(vec![payload]));
+    }
     let versioned_hashes = field(directive, &["blobVersionedHashes", "blob_versioned_hashes"])
         .cloned()
         .unwrap_or_else(|| Value::Array(Vec::new()));
@@ -66,7 +156,14 @@ pub fn new_payload_v5_params(
         &["parentBeaconBlockRoot", "parent_beacon_block_root"],
     )
     .cloned()
-    .unwrap_or(Value::Null);
+    .ok_or_else(|| FixtureError::MissingField("parentBeaconBlockRoot".to_owned()))?;
+    if version == 3 {
+        return Ok(Value::Array(vec![
+            payload,
+            versioned_hashes,
+            parent_beacon_block_root,
+        ]));
+    }
     let execution_requests = field(directive, &["executionRequests", "execution_requests"])
         .cloned()
         .unwrap_or_else(|| Value::Array(Vec::new()));
@@ -117,6 +214,8 @@ pub enum FixtureError {
     MissingPayload { fixture_case: String, index: usize },
     #[error("this command needs an engine_newPayloadV5 directive, but the fixture uses V{0}")]
     UnsupportedEngineVersion(u64),
+    #[error("the fixture cannot create a scenario: {0}")]
+    Scenario(String),
 }
 
 #[cfg(test)]
@@ -124,13 +223,26 @@ mod tests {
     use super::*;
 
     const FIXTURE: &str = r#"{
-      "missing_bal": {
+      "mixed_results": {
         "engineNewPayloads": [{
           "version": 5,
           "executionPayload": {"blockAccessList": "0xc0"},
           "blobVersionedHashes": [],
           "parentBeaconBlockRoot": "0x01",
           "executionRequests": []
+        }, {
+          "version": 4,
+          "executionPayload": {"blockAccessList": "0xc0"},
+          "blobVersionedHashes": [],
+          "parentBeaconBlockRoot": "0x01",
+          "executionRequests": [],
+          "validationError": "INVALID_BLOCK_HASH"
+        }, {
+          "version": 3,
+          "executionPayload": {"blockAccessList": "0xc0"},
+          "blobVersionedHashes": [],
+          "parentBeaconBlockRoot": "0x01",
+          "errorCode": -32602
         }]
       }
     }"#;
@@ -138,9 +250,9 @@ mod tests {
     #[test]
     fn inspects_and_converts_engine_v5_fixture_data() {
         let cases = inspect_engine_fixture(FIXTURE).expect("fixture is valid");
-        assert_eq!(cases[0].name, "missing_bal");
-        assert_eq!(cases[0].engine_versions, vec![5]);
-        let params = new_payload_v5_params(FIXTURE, "missing_bal", 0).expect("params convert");
+        assert_eq!(cases[0].name, "mixed_results");
+        assert_eq!(cases[0].engine_versions, vec![5, 4, 3]);
+        let params = new_payload_v5_params(FIXTURE, "mixed_results", 0).expect("params convert");
         assert_eq!(
             params.pointer("/0/blockAccessList"),
             Some(&Value::String("0xc0".to_owned()))
@@ -149,5 +261,26 @@ mod tests {
             params.pointer("/2"),
             Some(&Value::String("0x01".to_owned()))
         );
+    }
+
+    #[test]
+    fn creates_ordered_fixture_replay_actions_with_expected_results() {
+        let scenario = engine_fixture_scenario(FIXTURE, "mixed_results").expect("scenario builds");
+        assert_eq!(scenario.actions.len(), 3);
+        let Action::Rpc(first) = &scenario.actions[0] else {
+            panic!("expected RPC action")
+        };
+        assert_eq!(first.method, "engine_newPayloadV5");
+        assert_eq!(first.expect.baseline[0].path, "/result/status");
+        assert_eq!(first.expect.baseline[0].equals, Some(json!("VALID")));
+        let Action::Rpc(second) = &scenario.actions[1] else {
+            panic!("expected RPC action")
+        };
+        assert_eq!(second.expect.baseline[0].equals, Some(json!("INVALID")));
+        let Action::Rpc(third) = &scenario.actions[2] else {
+            panic!("expected RPC action")
+        };
+        assert_eq!(third.expect.baseline[0].path, "/error/code");
+        assert_eq!(third.expect.baseline[0].equals, Some(json!(-32602)));
     }
 }

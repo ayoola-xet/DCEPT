@@ -30,6 +30,16 @@ const GLAMSTERDAM_PROBES: &[BuiltInProbe] = &[
         title: "Malformed block access list rejection",
         scenario: include_str!("../probes/glamsterdam/malformed-block-access-list.yaml"),
     },
+    BuiltInProbe {
+        id: "glamsterdam/gloas-builder-status",
+        title: "Gloas Builder API status",
+        scenario: include_str!("../probes/glamsterdam/gloas-builder-status.yaml"),
+    },
+    BuiltInProbe {
+        id: "glamsterdam/gloas-execution-payload-bid",
+        title: "Gloas execution payload bid",
+        scenario: include_str!("../probes/glamsterdam/gloas-execution-payload-bid.yaml"),
+    },
 ];
 
 pub fn built_in_probes() -> &'static [BuiltInProbe] {

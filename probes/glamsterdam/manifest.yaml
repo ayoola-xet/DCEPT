@@ -6,6 +6,7 @@ fixture_release: tests-glamsterdam-devnet@v7.2.1
 scope:
   - EIP-7928 block-level access lists and Amsterdam Engine API versions
   - EIP-2780, EIP-7981, EIP-8037, and EIP-8038 gas repricing
+  - EIP-7732 Gloas Builder API availability and execution payload bids
 probes:
   - id: glamsterdam/engine-api-surface
     scenario: engine-api-surface.yaml
@@ -15,3 +16,7 @@ probes:
     scenario: gas-repricing-estimate.yaml
   - id: glamsterdam/malformed-block-access-list
     scenario: malformed-block-access-list.yaml
+  - id: glamsterdam/gloas-builder-status
+    scenario: gloas-builder-status.yaml
+  - id: glamsterdam/gloas-execution-payload-bid
+    scenario: gloas-execution-payload-bid.yaml

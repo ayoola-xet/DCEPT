@@ -14,10 +14,16 @@ testnet. Do not compare unrelated networks.
 - `gas-repricing-estimate.yaml` compares transfer and access-list gas estimates.
 - `malformed-block-access-list.yaml` compares rejection of a known invalid
   `engine_newPayloadV5` fixture.
+- `gloas-builder-status.yaml` checks the EIP-7732 Builder API status route.
+- `gloas-execution-payload-bid.yaml` compares EIP-7732 execution payload bids.
 
 Engine API probes need authenticated Engine API endpoints. Give the CLI each
 target JWT header with `--baseline-header` and `--candidate-header`. Do not put
 JWT values in a scenario file.
+
+Gloas Builder API probes use Builder API target URLs, not execution RPC URLs.
+The payload-bid probe needs a current slot, execution parent hash, beacon parent
+root, and proposer public key from the same proposal context.
 
 Use an official Glamsterdam fixture for `new_payload_params`. Get the fixture
 from the selected `ethereum/execution-specs` Glamsterdam test release. Pin the
@@ -50,6 +56,12 @@ glamprobe probe run glamsterdam/malformed-block-access-list \
 The fixture must match the genesis state and fork configuration of both targets.
 GlamProbe sends the selected Engine API directive. It does not create fixture
 genesis state or start clients for you.
+
+Run one complete fixture case with `glamprobe fixture run`. This command sends
+each `engine_newPayloadV*` directive in order. It checks the expected `VALID`,
+`INVALID`, or JSON-RPC error-code result on each target. Start each target with
+the fixture network, genesis header, and pre-state first. GlamProbe does not
+start or configure the nodes.
 
 ## Run a probe
 

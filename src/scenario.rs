@@ -138,6 +138,29 @@ fn resolve_value(value: &mut Value, inputs: &BTreeMap<String, Value>) -> Result<
     Ok(())
 }
 
+fn resolve_text(value: &str, inputs: &BTreeMap<String, Value>) -> Result<String, ScenarioError> {
+    let mut output = String::new();
+    let mut remaining = value;
+    while let Some(start) = remaining.find("{{") {
+        output.push_str(&remaining[..start]);
+        let after_start = &remaining[start + 2..];
+        let end = after_start
+            .find("}}")
+            .ok_or_else(|| ScenarioError::InvalidInputTemplate(value.to_owned()))?;
+        let name = &after_start[..end];
+        let replacement = inputs
+            .get(name)
+            .ok_or_else(|| ScenarioError::UnresolvedInput(name.to_owned()))?;
+        let replacement = replacement
+            .as_str()
+            .ok_or_else(|| ScenarioError::InputIsNotString(name.to_owned()))?;
+        output.push_str(replacement);
+        remaining = &after_start[end + 2..];
+    }
+    output.push_str(remaining);
+    Ok(output)
+}
+
 impl Scenario {
     pub fn from_yaml(source: &str) -> Result<Self, ScenarioError> {
         let scenario: Self = serde_yaml::from_str(source)
@@ -237,6 +260,16 @@ impl Scenario {
                     }
                 }
                 Action::Http(action) => {
+                    action.path = resolve_text(&action.path, &values)?;
+                    if let Some(path) = &mut action.baseline_path {
+                        *path = resolve_text(path, &values)?;
+                    }
+                    if let Some(path) = &mut action.candidate_path {
+                        *path = resolve_text(path, &values)?;
+                    }
+                    for value in action.headers.values_mut() {
+                        *value = resolve_text(value, &values)?;
+                    }
                     if let Some(body) = &mut action.body {
                         resolve_value(body, &values)?;
                     }
@@ -655,6 +688,10 @@ pub enum ScenarioError {
     UnknownInput(String),
     #[error("input '{0}' is not resolved")]
     UnresolvedInput(String),
+    #[error("input template '{0}' is not closed")]
+    InvalidInputTemplate(String),
+    #[error("input '{0}' must be a string in an HTTP path or header")]
+    InputIsNotString(String),
     #[error("built-in probe '{0}' does not exist")]
     UnknownBuiltInProbe(String),
     #[error("each action needs an id")]
@@ -831,5 +868,42 @@ actions:
             scenario.resolve_inputs(&inputs),
             Err(ScenarioError::UnknownInput(_))
         ));
+    }
+
+    #[test]
+    fn resolves_inputs_in_http_paths_and_headers() {
+        let scenario = Scenario::from_yaml(
+            r#"
+name: builder-bid
+inputs:
+  slot:
+    description: Gloas slot.
+    required: true
+  version:
+    description: Consensus version.
+    required: true
+actions:
+  - kind: http
+    id: bid
+    method: GET
+    path: /eth/v1/builder/execution_payload_bid/{{slot}}
+    headers:
+      Eth-Consensus-Version: "{{version}}"
+"#,
+        )
+        .expect("valid scenario");
+        let inputs = BTreeMap::from([
+            ("slot".to_owned(), Value::String("123".to_owned())),
+            ("version".to_owned(), Value::String("gloas".to_owned())),
+        ]);
+        let resolved = scenario.resolve_inputs(&inputs).expect("inputs resolve");
+        let Action::Http(action) = &resolved.actions[0] else {
+            panic!("expected HTTP action");
+        };
+        assert_eq!(action.path, "/eth/v1/builder/execution_payload_bid/123");
+        assert_eq!(
+            action.headers.get("Eth-Consensus-Version"),
+            Some(&"gloas".to_owned())
+        );
     }
 }

@@ -83,6 +83,10 @@ export function resolveHostedScenarioInputs(scenario: HostedScenario, supplied: 
       if (action.baseline_params !== undefined) action.baseline_params = resolveValue(action.baseline_params, values);
       if (action.candidate_params !== undefined) action.candidate_params = resolveValue(action.candidate_params, values);
     } else {
+      action.path = resolveText(action.path, values);
+      if (action.baseline_path !== undefined) action.baseline_path = resolveText(action.baseline_path, values);
+      if (action.candidate_path !== undefined) action.candidate_path = resolveText(action.candidate_path, values);
+      action.headers = Object.fromEntries(Object.entries(action.headers).map(([name, value]) => [name, resolveText(value, values)]));
       if (action.body !== undefined) action.body = resolveValue(action.body, values);
       if (action.baseline_body !== undefined) action.baseline_body = resolveValue(action.baseline_body, values);
       if (action.candidate_body !== undefined) action.candidate_body = resolveValue(action.candidate_body, values);
@@ -110,4 +114,12 @@ function resolveValue(value: unknown, inputs: Record<string, unknown>): unknown 
   if (Array.isArray(value)) return value.map((item) => resolveValue(item, inputs));
   if (typeof value === "object" && value !== null) return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, resolveValue(item, inputs)]));
   return value;
+}
+
+function resolveText(value: string, inputs: Record<string, unknown>): string {
+  return value.replace(/{{([^}]+)}}/g, (_match, name: string) => {
+    if (!(name in inputs)) throw new Error(`Input '${name}' is not resolved.`);
+    if (typeof inputs[name] !== "string") throw new Error(`Input '${name}' must be a string in an HTTP path or header.`);
+    return inputs[name];
+  });
 }

@@ -1,0 +1,23 @@
+version: 1
+name: glamsterdam-gloas-builder-status
+description: Verify that both Gloas builder endpoints are available through the Builder API status route.
+probe:
+  upgrade: glamsterdam
+  eips: ["EIP-7732"]
+  category: builder_api
+  risk: high
+  fixture_release: tests-glamsterdam-devnet@v7.2.1
+  sources:
+    - https://github.com/ethereum/builder-specs/blob/main/builder-oapi.yaml
+actions:
+  - kind: http
+    id: builder-status
+    method: GET
+    path: /eth/v1/builder/status
+    expect:
+      baseline:
+        - path: /status
+          equals: 200
+      candidate:
+        - path: /status
+          equals: 200

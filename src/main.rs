@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 use glamprobe::{
     RunOptions, Scenario, Target, TargetPair, execute_fuzz, execute_scenario,
     executor::headers_from_pairs,
-    fixtures::{inspect_engine_fixture, new_payload_v5_params},
+    fixtures::{engine_fixture_scenario, inspect_engine_fixture, new_payload_v5_params},
     minimize_actions,
     probes::{built_in_probes, load_built_in_probe},
 };
@@ -102,6 +102,16 @@ enum FixtureCommand {
         #[arg(long)]
         output: Option<PathBuf>,
     },
+    /// Replay one fixture case against two nodes prepared with that fixture state.
+    Run {
+        fixture: PathBuf,
+        #[arg(long = "case")]
+        fixture_case: String,
+        #[command(flatten)]
+        targets: FixtureTargetArguments,
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Debug, clap::Args, Default)]
@@ -132,6 +142,24 @@ struct TargetArguments {
     timeout_secs: u64,
     #[command(flatten)]
     inputs: InputArguments,
+}
+
+#[derive(Debug, clap::Args)]
+struct FixtureTargetArguments {
+    #[arg(long = "baseline", visible_alias = "baseline-url")]
+    baseline_url: Url,
+    #[arg(long = "candidate", visible_alias = "candidate-url")]
+    candidate_url: Url,
+    #[arg(long, default_value = "baseline")]
+    baseline_name: String,
+    #[arg(long, default_value = "candidate")]
+    candidate_name: String,
+    #[arg(long = "baseline-header", value_name = "NAME:VALUE")]
+    baseline_headers: Vec<String>,
+    #[arg(long = "candidate-header", value_name = "NAME:VALUE")]
+    candidate_headers: Vec<String>,
+    #[arg(long, default_value_t = 30)]
+    timeout_secs: u64,
 }
 
 #[tokio::main]
@@ -274,6 +302,33 @@ async fn main() -> Result<()> {
                     println!("{rendered}");
                 }
             }
+            FixtureCommand::Run {
+                fixture,
+                fixture_case,
+                targets,
+                output,
+            } => {
+                let scenario = engine_fixture_scenario(&read_fixture(&fixture)?, &fixture_case)?;
+                let timeout = targets.timeout_secs;
+                let report = execute_scenario(
+                    &scenario,
+                    &fixture_target_pair(targets)?,
+                    &RunOptions {
+                        timeout: Duration::from_secs(timeout),
+                    },
+                )
+                .await;
+                let rendered =
+                    serde_json::to_string_pretty(&report).context("could not encode run report")?;
+                if let Some(output) = output {
+                    fs::write(&output, &rendered)
+                        .with_context(|| format!("could not write {}", output.display()))?;
+                }
+                println!("{rendered}");
+                if report.has_findings {
+                    process::exit(2);
+                }
+            }
         },
     }
     Ok(())
@@ -326,17 +381,45 @@ fn parse_input_arguments(inputs: &InputArguments) -> Result<BTreeMap<String, ser
 }
 
 fn target_pair(arguments: TargetArguments) -> Result<TargetPair> {
+    build_target_pair(
+        arguments.baseline_url,
+        arguments.candidate_url,
+        arguments.baseline_name,
+        arguments.candidate_name,
+        arguments.baseline_headers,
+        arguments.candidate_headers,
+    )
+}
+
+fn fixture_target_pair(arguments: FixtureTargetArguments) -> Result<TargetPair> {
+    build_target_pair(
+        arguments.baseline_url,
+        arguments.candidate_url,
+        arguments.baseline_name,
+        arguments.candidate_name,
+        arguments.baseline_headers,
+        arguments.candidate_headers,
+    )
+}
+
+fn build_target_pair(
+    baseline_url: Url,
+    candidate_url: Url,
+    baseline_name: String,
+    candidate_name: String,
+    baseline_headers: Vec<String>,
+    candidate_headers: Vec<String>,
+) -> Result<TargetPair> {
     Ok(TargetPair {
         baseline: Target {
-            name: arguments.baseline_name,
-            url: arguments.baseline_url,
-            headers: headers_from_pairs(&arguments.baseline_headers).map_err(anyhow::Error::msg)?,
+            name: baseline_name,
+            url: baseline_url,
+            headers: headers_from_pairs(&baseline_headers).map_err(anyhow::Error::msg)?,
         },
         candidate: Target {
-            name: arguments.candidate_name,
-            url: arguments.candidate_url,
-            headers: headers_from_pairs(&arguments.candidate_headers)
-                .map_err(anyhow::Error::msg)?,
+            name: candidate_name,
+            url: candidate_url,
+            headers: headers_from_pairs(&candidate_headers).map_err(anyhow::Error::msg)?,
         },
     })
 }

@@ -137,7 +137,8 @@ The CLI prints the report to standard output. It exits with `0` when there are n
 
 GlamProbe includes built-in probes for the current Glamsterdam devnet scope.
 They cover the Amsterdam Engine API surface, EIP-7928 block access list
-retrieval and validation, and EIP-2780/EIP-7981/EIP-8037/EIP-8038 gas estimates.
+retrieval and validation, EIP-2780/EIP-7981/EIP-8037/EIP-8038 gas estimates,
+and EIP-7732 Gloas Builder API behavior.
 
 ```sh
 glamprobe probe list
@@ -162,6 +163,19 @@ probe requirements and fixture use.
 Use `glamprobe fixture inspect` and `glamprobe fixture new-payload-v5-params`
 to export an official `blockchain_test_engine` fixture directive. Pass the JSON
 file to a probe with `--var-file NAME=PATH`.
+
+Use `glamprobe fixture run` to deliver every `engine_newPayloadV*` directive
+from one fixture case to both targets. The command checks the expected Engine
+API status or error code for each target. Start each target with the fixture
+network, genesis header, and pre-state before you run this command.
+
+```sh
+glamprobe fixture run fixtures.json --case test_name \
+  --baseline http://baseline-engine.example \
+  --candidate http://candidate-engine.example \
+  --baseline-header 'Authorization: Bearer baseline-jwt' \
+  --candidate-header 'Authorization: Bearer candidate-jwt'
+```
 
 Each probe can include target assertions. Assertions fail when a target misses a
 required protocol capability, even when both target responses are identical.

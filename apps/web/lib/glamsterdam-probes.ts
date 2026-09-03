@@ -134,6 +134,71 @@ actions:
           has_keys: [blockAccessList]
 `,
   },
+  {
+    id: "glamsterdam/gloas-builder-status",
+    title: "Gloas Builder API status",
+    detail: "EIP-7732. Checks that both Builder API targets return HTTP 200 from the Gloas builder status route.",
+    yaml: `version: 1
+name: glamsterdam-gloas-builder-status
+description: Verify that both Gloas builder endpoints are available through the Builder API status route.
+probe:
+  upgrade: glamsterdam
+  eips: ["EIP-7732"]
+  category: builder_api
+  risk: high
+  fixture_release: tests-glamsterdam-devnet@v7.2.1
+  sources: ["https://github.com/ethereum/builder-specs/blob/main/builder-oapi.yaml"]
+actions:
+  - kind: http
+    id: builder-status
+    method: GET
+    path: /eth/v1/builder/status
+    expect:
+      baseline:
+        - path: /status
+          equals: 200
+      candidate:
+        - path: /status
+          equals: 200
+`,
+  },
+  {
+    id: "glamsterdam/gloas-execution-payload-bid",
+    title: "Gloas execution payload bid",
+    detail: "EIP-7732. Compare ePBS bid responses from two Builder API targets for one proposal context.",
+    yaml: `version: 1
+name: glamsterdam-gloas-execution-payload-bid
+description: Compare Gloas ePBS execution payload bid responses from two Builder API targets for the same proposal context.
+probe:
+  upgrade: glamsterdam
+  eips: ["EIP-7732"]
+  category: builder_api
+  risk: critical
+  fixture_release: tests-glamsterdam-devnet@v7.2.1
+  sources: ["https://github.com/ethereum/builder-specs/blob/main/apis/builder/execution_payload_bid.yaml"]
+inputs:
+  slot:
+    description: The decimal Gloas slot to query.
+    required: true
+  parent_hash:
+    description: The execution parent hash for the proposed block.
+    required: true
+  parent_root:
+    description: The beacon parent root for the proposed block.
+    required: true
+  proposer_pubkey:
+    description: The BLS public key of the proposer.
+    required: true
+actions:
+  - kind: http
+    id: execution-payload-bid
+    method: GET
+    path: /eth/v1/builder/execution_payload_bid/{{slot}}/{{parent_hash}}/{{parent_root}}/{{proposer_pubkey}}
+    headers:
+      Accept: application/json
+      Eth-Consensus-Version: gloas
+`,
+  },
 ] as const;
 
 export const defaultGlamsterdamProbe = glamsterdamProbes[0];

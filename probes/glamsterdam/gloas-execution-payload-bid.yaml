@@ -1,0 +1,32 @@
+version: 1
+name: glamsterdam-gloas-execution-payload-bid
+description: Compare Gloas ePBS execution payload bid responses from two Builder API targets for the same proposal context.
+probe:
+  upgrade: glamsterdam
+  eips: ["EIP-7732"]
+  category: builder_api
+  risk: critical
+  fixture_release: tests-glamsterdam-devnet@v7.2.1
+  sources:
+    - https://github.com/ethereum/builder-specs/blob/main/apis/builder/execution_payload_bid.yaml
+inputs:
+  slot:
+    description: The decimal Gloas slot to query.
+    required: true
+  parent_hash:
+    description: The execution parent hash for the proposed block.
+    required: true
+  parent_root:
+    description: The beacon parent root for the proposed block.
+    required: true
+  proposer_pubkey:
+    description: The BLS public key of the proposer.
+    required: true
+actions:
+  - kind: http
+    id: execution-payload-bid
+    method: GET
+    path: /eth/v1/builder/execution_payload_bid/{{slot}}/{{parent_hash}}/{{parent_root}}/{{proposer_pubkey}}
+    headers:
+      Accept: application/json
+      Eth-Consensus-Version: gloas
