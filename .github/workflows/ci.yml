@@ -18,7 +18,9 @@ jobs:
       - run: cargo test
       - run: node scripts/verify-local-run.mjs
       - run: node scripts/verify-glamsterdam-probes.mjs
+      - run: cargo install wasm-pack --version 0.13.1 --locked
       - run: ./scripts/build-wasm.sh
+      - run: node scripts/verify-wasm-core.mjs
   web:
     runs-on: ubuntu-latest
     defaults:
