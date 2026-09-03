@@ -79,6 +79,8 @@ pub fn engine_fixture_scenario(source: &str, fixture_case: &str) -> Result<Scena
         .enumerate()
         .map(|(index, directive)| fixture_action(index, directive))
         .collect::<Result<Vec<_>, _>>()?;
+    let mut actions = actions;
+    append_final_head_actions(&mut actions, fixture)?;
     let scenario = Scenario {
         version: 1,
         name: format!("fixture-{fixture_case}"),
@@ -108,6 +110,81 @@ fn fixture_action(index: usize, directive: &Value) -> Result<Action, FixtureErro
         comparison: Comparison::default(),
         expect: expectations,
     }))
+}
+
+fn append_final_head_actions(
+    actions: &mut Vec<Action>,
+    fixture: &Value,
+) -> Result<(), FixtureError> {
+    let Some(last_block_hash) = field(fixture, &["lastblockhash", "lastBlockHash"]) else {
+        return Ok(());
+    };
+    let Some(version) = field(fixture, &["engineFcuVersion", "engine_fcu_version"]) else {
+        return Ok(());
+    };
+    let version = version
+        .as_u64()
+        .or_else(|| version.as_str().and_then(|value| value.parse().ok()))
+        .ok_or_else(|| FixtureError::InvalidVersion(version.clone()))?;
+    if version == 0 {
+        return Err(FixtureError::UnsupportedForkchoiceVersion(version));
+    }
+    let head = last_block_hash.clone();
+    let valid_status = ResponseAssertion {
+        path: "/result/payloadStatus/status".to_owned(),
+        equals: Some(json!("VALID")),
+        contains_all: Vec::new(),
+        has_keys: Vec::new(),
+        is_hex_quantity: false,
+    };
+    actions.push(Action::Rpc(RpcAction {
+        id: format!("set-fixture-head-v{version}"),
+        method: format!("engine_forkchoiceUpdatedV{version}"),
+        params: json!([
+            {
+                "headBlockHash": head,
+                "safeBlockHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "finalizedBlockHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            null
+        ]),
+        baseline_params: None,
+        candidate_params: None,
+        comparison: Comparison::default(),
+        expect: TargetExpectations {
+            baseline: vec![valid_status.clone()],
+            candidate: vec![valid_status],
+        },
+    }));
+    let mut expected = vec![ResponseAssertion {
+        path: "/result/hash".to_owned(),
+        equals: Some(last_block_hash.clone()),
+        contains_all: Vec::new(),
+        has_keys: Vec::new(),
+        is_hex_quantity: false,
+    }];
+    if let Some(post_state_root) = field(fixture, &["postStateHash", "post_state_hash"]) {
+        expected.push(ResponseAssertion {
+            path: "/result/stateRoot".to_owned(),
+            equals: Some(post_state_root.clone()),
+            contains_all: Vec::new(),
+            has_keys: Vec::new(),
+            is_hex_quantity: false,
+        });
+    }
+    actions.push(Action::Rpc(RpcAction {
+        id: "verify-fixture-head".to_owned(),
+        method: "eth_getBlockByNumber".to_owned(),
+        params: json!(["latest", false]),
+        baseline_params: None,
+        candidate_params: None,
+        comparison: Comparison::default(),
+        expect: TargetExpectations {
+            baseline: expected.clone(),
+            candidate: expected,
+        },
+    }));
+    Ok(())
 }
 
 fn fixture_expectations(directive: &Value) -> TargetExpectations {
@@ -224,6 +301,8 @@ pub enum FixtureError {
     MissingPayload { fixture_case: String, index: usize },
     #[error("this command needs an engine_newPayloadV5 directive, but the fixture uses V{0}")]
     UnsupportedEngineVersion(u64),
+    #[error("this fixture uses unsupported engine_forkchoiceUpdatedV{0}")]
+    UnsupportedForkchoiceVersion(u64),
     #[error("the fixture cannot create a scenario: {0}")]
     Scenario(String),
 }
@@ -234,6 +313,9 @@ mod tests {
 
     const FIXTURE: &str = r#"{
       "mixed_results": {
+        "engineFcuVersion": 4,
+        "lastblockhash": "0xfeed",
+        "postStateHash": "0xbeef",
         "engineNewPayloads": [{
           "version": 5,
           "params": [{"blockAccessList": "0xc0"}, [], "0x01", []]
@@ -273,7 +355,7 @@ mod tests {
     #[test]
     fn creates_ordered_fixture_replay_actions_with_expected_results() {
         let scenario = engine_fixture_scenario(FIXTURE, "mixed_results").expect("scenario builds");
-        assert_eq!(scenario.actions.len(), 3);
+        assert_eq!(scenario.actions.len(), 5);
         let Action::Rpc(first) = &scenario.actions[0] else {
             panic!("expected RPC action")
         };
@@ -289,5 +371,14 @@ mod tests {
         };
         assert_eq!(third.expect.baseline[0].path, "/error/code");
         assert_eq!(third.expect.baseline[0].equals, Some(json!(-32602)));
+        let Action::Rpc(forkchoice) = &scenario.actions[3] else {
+            panic!("expected RPC action")
+        };
+        assert_eq!(forkchoice.method, "engine_forkchoiceUpdatedV4");
+        let Action::Rpc(final_head) = &scenario.actions[4] else {
+            panic!("expected RPC action")
+        };
+        assert_eq!(final_head.method, "eth_getBlockByNumber");
+        assert_eq!(final_head.expect.baseline.len(), 2);
     }
 }

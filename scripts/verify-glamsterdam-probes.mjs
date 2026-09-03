@@ -151,9 +151,13 @@ async function verifyFixtureReplay() {
   let baselineCalls = 0;
   let candidateCalls = 0;
   const fixtureReply = (counter) => (payload) => {
-    if (payload.method !== "engine_newPayloadV5") return { error: { code: -32601, message: "method not found" } };
-    counter.calls += 1;
-    return counter.calls === 1 ? { result: { status: "VALID" } } : { error: { code: -32602, message: "invalid payload" } };
+    if (payload.method === "engine_newPayloadV5") {
+      counter.calls += 1;
+      return counter.calls === 1 ? { result: { status: "VALID" } } : { error: { code: -32602, message: "invalid payload" } };
+    }
+    if (payload.method === "engine_forkchoiceUpdatedV4") return { result: { payloadStatus: { status: "VALID" } } };
+    if (payload.method === "eth_getBlockByNumber") return { result: { hash: "0xfeed", stateRoot: "0xbeef" } };
+    return { error: { code: -32601, message: "method not found" } };
   };
   const baselineCounter = { calls: baselineCalls };
   const candidateCounter = { calls: candidateCalls };
@@ -163,6 +167,9 @@ async function verifyFixtureReplay() {
   const fixture = join(directory, "fixture.json");
   await writeFile(fixture, JSON.stringify({
     valid_and_invalid: {
+      engineFcuVersion: 4,
+      lastblockhash: "0xfeed",
+      postStateHash: "0xbeef",
       engineNewPayloads: [
         { version: 5, params: [{ blockHash: "0x01" }, [], "0x02", []] },
         { version: 5, params: [{ blockHash: "0x03" }, [], "0x04", []], errorCode: -32602 },
@@ -174,7 +181,7 @@ async function verifyFixtureReplay() {
     const result = await run(binary, ["fixture", "run", fixture, "--case", "valid_and_invalid", "--baseline", `http://127.0.0.1:${baseline.address().port}`, "--candidate", `http://127.0.0.1:${candidate.address().port}`]);
     if (result.code !== 0) throw new Error(`Expected fixture replay to pass. Got ${result.code}. ${result.stderr}`);
     const report = JSON.parse(result.stdout);
-    if (report.actions.length !== 2 || report.has_findings) throw new Error("Fixture replay did not validate the ordered directives.");
+    if (report.actions.length !== 4 || report.has_findings) throw new Error("Fixture replay did not validate the ordered directives and final head.");
     if (baselineCounter.calls !== 2 || candidateCounter.calls !== 2) throw new Error("Fixture replay did not deliver every directive to both targets.");
   } finally {
     baseline.close();

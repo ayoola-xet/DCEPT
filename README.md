@@ -169,9 +169,11 @@ to export the `params` array from an official `blockchain_test_engine` fixture
 directive. Pass the JSON file to a probe with `--var-file NAME=PATH`.
 
 Use `glamprobe fixture run` to deliver every `engine_newPayloadV*` directive
-from one fixture case to both targets. The command checks the expected Engine
-API status or error code for each target. Start each target with the fixture
-network, genesis header, and pre-state before you run this command.
+from one fixture case to both targets. When the fixture includes a final head,
+the command also sends `engine_forkchoiceUpdatedV*` and checks that head through
+`eth_getBlockByNumber`. The command checks the expected Engine API status or
+error code for each target. Start each target with the fixture network, genesis
+header, and pre-state before you run this command.
 
 ```sh
 glamprobe fixture run fixtures.json --case test_name \

@@ -64,7 +64,8 @@ Run one complete fixture case with `glamprobe fixture run`. This command sends
 each `engine_newPayloadV*` directive in order. It checks the expected `VALID`,
 `INVALID`, or JSON-RPC error-code result on each target. Start each target with
 the fixture network, genesis header, and pre-state first. GlamProbe does not
-start or configure the nodes.
+start or configure the nodes. If the fixture includes a final head, GlamProbe
+sets it with `engine_forkchoiceUpdatedV*` and checks it through normal RPC.
 
 ## Run a probe
 
