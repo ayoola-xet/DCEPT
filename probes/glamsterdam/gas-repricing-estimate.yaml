@@ -19,10 +19,21 @@ inputs:
     kind: address
     required: true
   block:
-    description: A post-Glamsterdam block number or stable block tag shared by both targets.
-    kind: block_tag
-    default: latest
+    description: An exact post-Glamsterdam block number shared by both targets, in hexadecimal quantity form.
+    kind: quantity
+    required: true
 actions:
+  - kind: rpc
+    id: shared-fork-block
+    method: eth_getBlockByNumber
+    params: ["{{block}}", false]
+    expect:
+      baseline:
+        - path: /result
+          has_keys: [hash, number]
+      candidate:
+        - path: /result
+          has_keys: [hash, number]
   - kind: rpc
     id: minimal-value-transfer
     method: eth_estimateGas

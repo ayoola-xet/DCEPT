@@ -108,6 +108,28 @@ async function verifyPayloadBid(status, expectedExit, expectedAssertions) {
   }
 }
 
+async function verifyGasProbe(blockResult, expectedExit, expectedAssertions) {
+  const reply = (payload) => {
+    if (payload.method === "eth_getBlockByNumber") return { result: blockResult };
+    if (payload.method === "eth_estimateGas") return { result: "0x5208" };
+    return { error: { code: -32601, message: "method not found" } };
+  };
+  const baseline = await rpcServer(reply);
+  const candidate = await rpcServer(reply);
+  try {
+    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "glamprobe.exe" : "glamprobe");
+    const result = await run(binary, ["probe", "run", "glamsterdam/gas-repricing-estimate", "--baseline", `http://127.0.0.1:${baseline.address().port}`, "--candidate", `http://127.0.0.1:${candidate.address().port}`, "--var", "sender=0x0000000000000000000000000000000000000001", "--var", "recipient=0x0000000000000000000000000000000000000002", "--var", "block=0x1234"]);
+    if (result.code !== expectedExit) throw new Error(`Expected gas probe exit code ${expectedExit}. Got ${result.code}. ${result.stderr}`);
+    const report = JSON.parse(result.stdout);
+    const failures = report.actions?.[0]?.assertion_failures ?? [];
+    if (failures.length !== expectedAssertions) throw new Error(`Expected ${expectedAssertions} gas probe assertion failures. Got ${failures.length}.`);
+    if (expectedAssertions > 0 && report.actions?.[0]?.diffs?.length !== 0) throw new Error("The gas probe preflight must fail through assertions, not target differences.");
+  } finally {
+    baseline.close();
+    candidate.close();
+  }
+}
+
 async function verifyFixtureReplay() {
   let baselineCalls = 0;
   let candidateCalls = 0;
@@ -152,5 +174,7 @@ await verifyBuilderStatus(200, 0, 0);
 await verifyBuilderStatus(503, 2, 2);
 await verifyPayloadBid(200, 0, 0);
 await verifyPayloadBid(404, 2, 2);
+await verifyGasProbe({ hash: "0x01", number: "0x1234" }, 0, 0);
+await verifyGasProbe({}, 2, 4);
 await verifyFixtureReplay();
 console.log("Glamsterdam probe invariant passed.");
