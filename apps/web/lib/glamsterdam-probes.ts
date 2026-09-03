@@ -11,8 +11,12 @@ probe:
   eips: ["EIP-2780", "EIP-7981", "EIP-8037", "EIP-8038"]
   category: gas_repricing
   risk: high
-  fixture_release: tests-glamsterdam-devnet@v7.2.1
-  sources: ["https://eips.ethereum.org/EIPS/eip-8007"]
+  fixture_release: tests-glamsterdam-devnet@v8.1.0
+  sources:
+    - https://eips.ethereum.org/EIPS/eip-2780
+    - https://eips.ethereum.org/EIPS/eip-7981
+    - https://eips.ethereum.org/EIPS/eip-8037
+    - https://eips.ethereum.org/EIPS/eip-8038
 inputs:
   sender:
     description: A funded disposable account on both targets.
@@ -85,7 +89,7 @@ probe:
   eips: ["EIP-7928"]
   category: engine_api
   risk: critical
-  fixture_release: tests-glamsterdam-devnet@v7.2.1
+  fixture_release: tests-glamsterdam-devnet@v8.1.0
   sources:
     - https://eips.ethereum.org/EIPS/eip-7928
     - https://github.com/ethereum/execution-apis/blob/main/src/engine/amsterdam.md
@@ -133,7 +137,7 @@ probe:
   eips: ["EIP-7928"]
   category: block_access_list
   risk: critical
-  fixture_release: tests-glamsterdam-devnet@v7.2.1
+  fixture_release: tests-glamsterdam-devnet@v8.1.0
   sources:
     - https://eips.ethereum.org/EIPS/eip-7928
     - https://github.com/ethereum/execution-apis/blob/main/src/engine/amsterdam.md
@@ -172,7 +176,7 @@ probe:
   eips: ["EIP-7928"]
   category: engine_validation
   risk: critical
-  fixture_release: tests-glamsterdam-devnet@v7.2.1
+  fixture_release: tests-glamsterdam-devnet@v8.1.0
   sources:
     - https://eips.ethereum.org/EIPS/eip-7928
     - https://github.com/ethereum/execution-specs/releases
@@ -207,7 +211,7 @@ probe:
   eips: ["EIP-7732"]
   category: builder_api
   risk: high
-  fixture_release: tests-glamsterdam-devnet@v7.2.1
+  fixture_release: tests-glamsterdam-devnet@v8.1.0
   sources: ["https://github.com/ethereum/builder-specs/blob/main/builder-oapi.yaml"]
 actions:
   - kind: http
@@ -235,7 +239,7 @@ probe:
   eips: ["EIP-7732"]
   category: builder_api
   risk: critical
-  fixture_release: tests-glamsterdam-devnet@v7.2.1
+  fixture_release: tests-glamsterdam-devnet@v8.1.0
   sources: ["https://github.com/ethereum/builder-specs/blob/main/apis/builder/execution_payload_bid.yaml"]
 inputs:
   slot:

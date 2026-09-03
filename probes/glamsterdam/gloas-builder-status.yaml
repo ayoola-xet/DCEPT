@@ -6,7 +6,7 @@ probe:
   eips: ["EIP-7732"]
   category: builder_api
   risk: high
-  fixture_release: tests-glamsterdam-devnet@v7.2.1
+  fixture_release: tests-glamsterdam-devnet@v8.1.0
   sources:
     - https://github.com/ethereum/builder-specs/blob/main/builder-oapi.yaml
 actions:

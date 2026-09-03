@@ -6,9 +6,12 @@ probe:
   eips: ["EIP-2780", "EIP-7981", "EIP-8037", "EIP-8038"]
   category: gas_repricing
   risk: high
-  fixture_release: tests-glamsterdam-devnet@v7.2.1
+  fixture_release: tests-glamsterdam-devnet@v8.1.0
   sources:
-    - https://eips.ethereum.org/EIPS/eip-8007
+    - https://eips.ethereum.org/EIPS/eip-2780
+    - https://eips.ethereum.org/EIPS/eip-7981
+    - https://eips.ethereum.org/EIPS/eip-8037
+    - https://eips.ethereum.org/EIPS/eip-8038
 inputs:
   sender:
     description: A funded disposable account on both targets.

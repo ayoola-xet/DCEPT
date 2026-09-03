@@ -6,7 +6,7 @@ probe:
   eips: ["EIP-7928"]
   category: engine_validation
   risk: critical
-  fixture_release: tests-glamsterdam-devnet@v7.2.1
+  fixture_release: tests-glamsterdam-devnet@v8.1.0
   sources:
     - https://eips.ethereum.org/EIPS/eip-7928
     - https://github.com/ethereum/execution-specs/releases
