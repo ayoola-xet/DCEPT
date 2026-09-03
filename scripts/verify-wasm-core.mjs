@@ -17,6 +17,9 @@ actions:
     params: ["{{block}}", false]
 `;
 
+const parsed = wasm.parse_scenario(scenario);
+if (parsed.actions[0]?.params[0] !== "{{block}}") throw new Error("The WASM scenario core did not preserve a declared input.");
+
 const resolved = wasm.resolve_scenario(scenario, { block: "0x1234" });
 if (Object.keys(resolved.inputs).length !== 0) throw new Error("The resolved WASM scenario still contains input definitions.");
 if (resolved.actions[0]?.params[0] !== "0x1234") throw new Error("The WASM scenario core did not resolve the input value.");

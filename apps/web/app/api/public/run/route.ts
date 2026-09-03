@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { parseHostedScenario, resolveHostedScenarioInputs } from "@/lib/hosted-scenario";
 import { runPublicScenario } from "@/lib/public-run";
+import { comparisonCore, resolveScenarioWithCore } from "@/lib/rust-core";
 import { validatePublicTargetUrl } from "@/lib/target-url";
 
 export const runtime = "nodejs";
@@ -23,14 +23,14 @@ export async function POST(request: Request) {
       const error = await validatePublicTargetUrl(endpoint);
       if (error) return NextResponse.json({ error }, { status: 400 });
     }
-    const scenario = resolveHostedScenarioInputs(parseHostedScenario(input.scenarioYaml), input.inputs);
+    const scenario = await resolveScenarioWithCore(input.scenarioYaml, input.inputs);
     if (scenario.actions.length > 20) return NextResponse.json({ error: "The no-login server runner allows up to 20 actions." }, { status: 400 });
     if (scenario.fuzz) return NextResponse.json({ error: "The no-login server runner does not run fuzz cases. Use the local CLI or GlamProbe Cloud." }, { status: 400 });
     const unsafeAction = scenario.actions.find((action) => action.kind === "rpc" && unsafeMethod.test(action.method));
     if (unsafeAction) return NextResponse.json({ error: `RPC method '${unsafeAction.method}' is not allowed in the no-login server runner.` }, { status: 400 });
     const unsafeHttpAction = scenario.actions.find((action) => action.kind === "http" && !["GET", "HEAD"].includes(action.method.toUpperCase()));
     if (unsafeHttpAction) return NextResponse.json({ error: `HTTP method '${unsafeHttpAction.method}' is not allowed in the no-login server runner.` }, { status: 400 });
-    return NextResponse.json(await runPublicScenario(scenario, { endpoint: input.baseline }, { endpoint: input.candidate }));
+    return NextResponse.json(await runPublicScenario(scenario, { endpoint: input.baseline }, { endpoint: input.candidate }, await comparisonCore()));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Request is invalid.";
     return NextResponse.json({ error: message }, { status: 400 });

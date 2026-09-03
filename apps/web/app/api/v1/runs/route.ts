@@ -5,7 +5,7 @@ import { z } from "zod";
 import { badRequest, hasScope, isResponse, requireSession } from "@/lib/api";
 import { requireAccess } from "@/lib/authorization";
 import { database, newId } from "@/lib/db";
-import { parseHostedScenario, resolveHostedScenarioInputs } from "@/lib/hosted-scenario";
+import { resolveScenarioWithCore } from "@/lib/rust-core";
 import { runScenarioWorkflow } from "@/workflows/run-scenario";
 
 const runSchema = z.object({
@@ -46,8 +46,7 @@ export async function POST(request: NextRequest) {
   if (!scenarios[0] || targets.length !== 2) return NextResponse.json({ error: "Scenario or target does not exist in this organization." }, { status: 404 });
   let caseCount: number;
   try {
-    const scenario = parseHostedScenario(scenarios[0].yaml_source as string);
-    caseCount = resolveHostedScenarioInputs(scenario, parsed.data.inputValues).fuzz?.cases ?? 1;
+    caseCount = (await resolveScenarioWithCore(scenarios[0].yaml_source as string, parsed.data.inputValues)).fuzz?.cases ?? 1;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Stored scenario YAML is invalid.";
     return NextResponse.json({ error: `Scenario inputs are invalid: ${message}` }, { status: 400 });

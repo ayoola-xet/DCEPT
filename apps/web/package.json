@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "1.1.0",
+    "glamprobe": "file:./lib/wasm",
     "jose": "6.1.3",
     "next": "16.3.4",
     "react": "19.2.8",

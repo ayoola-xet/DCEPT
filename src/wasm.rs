@@ -41,3 +41,12 @@ pub fn resolve_scenario(source: &str, inputs: JsValue) -> Result<JsValue, JsValu
     serde_wasm_bindgen::to_value(&scenario)
         .map_err(|error| JsValue::from_str(&format!("could not encode resolved scenario: {error}")))
 }
+
+/// Parse and validate a YAML scenario without resolving its declared inputs.
+#[wasm_bindgen]
+pub fn parse_scenario(source: &str) -> Result<JsValue, JsValue> {
+    let scenario =
+        Scenario::from_yaml(source).map_err(|error| JsValue::from_str(&error.to_string()))?;
+    serde_wasm_bindgen::to_value(&scenario)
+        .map_err(|error| JsValue::from_str(&format!("could not encode scenario: {error}")))
+}

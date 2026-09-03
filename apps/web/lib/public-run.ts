@@ -1,4 +1,3 @@
-import { compareJson } from "./compare";
 import type { HostedAction, HostedScenario } from "./hosted-scenario";
 
 export type PublicTarget = { endpoint: string };
@@ -13,7 +12,7 @@ export async function runPublicScenario(
   scenario: HostedScenario,
   baseline: PublicTarget,
   candidate: PublicTarget,
-  comparator: Comparator = compareJson,
+  comparator: Comparator,
 ): Promise<PublicRunReport> {
   if (scenario.fuzz) throw new Error("The no-login runner does not run fuzz cases. Use the local CLI or GlamProbe Cloud.");
   const credentialHeader = scenario.actions.find((action) => action.kind === "http" && Object.keys(action.headers).some(isCredentialHeader));

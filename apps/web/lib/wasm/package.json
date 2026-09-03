@@ -1,0 +1,11 @@
+{
+  "name": "glamprobe",
+  "version": "0.1.0",
+  "files": [
+    "glamprobe_bg.wasm",
+    "glamprobe.js",
+    "glamprobe.d.ts"
+  ],
+  "main": "glamprobe.js",
+  "types": "glamprobe.d.ts"
+}

@@ -11,8 +11,8 @@ The Rust core and CLI are standalone. They do not need a database, wallet, login
 ## No-login web workspace
 
 The optional web application also has a public local-run page. It stores no
-scenario, endpoint, response, or account data. It loads the Rust comparison
-core as WebAssembly in the browser.
+scenario, endpoint, response, or account data. It loads the Rust scenario and
+comparison core as WebAssembly in the browser.
 
 ```sh
 cd apps/web
@@ -236,7 +236,10 @@ cargo test
 
 ## Optional GlamProbe Cloud
 
-`apps/web` contains the optional hosted dashboard and REST API. It depends on the standalone Rust product. It uses Sign-In with Ethereum (SIWE) for wallet authentication, Neon PostgreSQL for tenant data, and Vercel Workflow for durable runs.
+`apps/web` contains the optional hosted dashboard and REST API. It uses the
+standalone Rust core for scenario validation, input resolution, and comparison.
+It uses Sign-In with Ethereum (SIWE) for wallet authentication, Neon PostgreSQL
+for tenant data, and Vercel Workflow for durable runs.
 
 Hosted scenarios also support the same `fuzz` block as the CLI. The workflow records the seed, each mutation, and each case report.
 

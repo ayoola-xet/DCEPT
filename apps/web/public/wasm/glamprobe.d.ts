@@ -7,6 +7,11 @@
 export function compare_json(baseline: any, candidate: any, comparison: any): any;
 
 /**
+ * Parse and validate a YAML scenario without resolving its declared inputs.
+ */
+export function parse_scenario(source: string): any;
+
+/**
  * Parse and resolve a YAML scenario with the same core that powers the CLI.
  */
 export function resolve_scenario(source: string, inputs: any): any;
@@ -16,6 +21,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly compare_json: (a: any, b: any, c: any) => [number, number, number];
+    readonly parse_scenario: (a: number, b: number) => [number, number, number];
     readonly resolve_scenario: (a: number, b: number, c: any) => [number, number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

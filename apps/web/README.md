@@ -4,6 +4,10 @@ This directory is the optional hosted GlamProbe Cloud application.
 
 It adds teams, wallet login, encrypted targets, API tokens, quotas, a dashboard, and durable cloud runs. It needs PostgreSQL, Vercel Workflow, and the environment values in `.env.example`.
 
+Cloud and the stateless server route use the packaged Rust core for scenario
+validation, input resolution, and comparison. The browser uses the browser
+WebAssembly package for the same operations.
+
 It is not part of the Rust build. A local user does not need this directory, Node.js, a database, login, or cloud credentials to use the GlamProbe CLI.
 
 ## Cloud console
@@ -19,7 +23,7 @@ public local-run page.
 
 The `/` page is a public local-run workspace. It does not need `.env.local`.
 It does not save scenarios, endpoints, responses, or account data. It loads the
-Rust comparison core as WebAssembly in the browser.
+Rust scenario and comparison core as WebAssembly in the browser.
 
 ```sh
 npm install

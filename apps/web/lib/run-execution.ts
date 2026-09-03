@@ -1,7 +1,7 @@
 import { decrypt } from "./crypto";
-import { compareJson } from "./compare";
 import { database } from "./db";
-import { parseHostedScenario, resolveHostedScenarioInputs, type HostedAction, type HostedScenario } from "./hosted-scenario";
+import { type HostedAction, type HostedScenario } from "./hosted-scenario";
+import { compareWithCore, resolveScenarioWithCore } from "./rust-core";
 
 type StoredRun = {
   status: string;
@@ -27,7 +27,7 @@ export async function prepareRun(runId: string): Promise<{ actionCount: number; 
   const run = await loadRun(runId);
   if (run.status === "canceled") return { actionCount: 0, canceled: true };
   await database()`UPDATE runs SET status = 'running', error_message = NULL WHERE id = ${runId} AND status = 'queued'`;
-  const scenario = resolvedScenario(run);
+  const scenario = await resolvedScenario(run);
   return { actionCount: scenario.actions.length * (scenario.fuzz?.cases ?? 1), canceled: false };
 }
 
@@ -35,7 +35,7 @@ export async function executeBatch(runId: string, startIndex: number): Promise<{
   "use step";
   const run = await loadRun(runId);
   if (run.status === "canceled") return { nextIndex: startIndex, done: true, canceled: true };
-  const scenario = resolvedScenario(run);
+  const scenario = await resolvedScenario(run);
   const baseline = targetFrom(run, "baseline");
   const candidate = targetFrom(run, "candidate");
   const fuzzCases = generatedCases(scenario);
@@ -90,11 +90,8 @@ async function loadRun(runId: string): Promise<StoredRun> {
   return rows[0] as StoredRun;
 }
 
-function resolvedScenario(run: StoredRun): HostedScenario {
-  return resolveHostedScenarioInputs(
-    parseHostedScenario(run.scenario_yaml_source),
-    run.input_values ?? {},
-  );
+async function resolvedScenario(run: StoredRun): Promise<HostedScenario> {
+  return resolveScenarioWithCore(run.scenario_yaml_source, run.input_values ?? {});
 }
 
 function targetFrom(run: StoredRun, side: "baseline" | "candidate"): Target {
@@ -110,7 +107,7 @@ async function executeAction(action: HostedAction, baseline: Target, candidate: 
     executeOperation(action, candidate, "candidate"),
   ]);
   const diffs = baselineResult.response !== null && candidateResult.response !== null
-    ? compareJson(baselineResult.response, candidateResult.response, action.comparison)
+    ? await compareWithCore(baselineResult.response, candidateResult.response, action.comparison)
     : baselineResult.error === candidateResult.error ? [] : [{ path: "", kind: "value_mismatch", baseline: baselineResult, candidate: candidateResult }];
   const assertion_failures = [
     ...evaluateAssertions("baseline", baselineResult, action.expect.baseline),
