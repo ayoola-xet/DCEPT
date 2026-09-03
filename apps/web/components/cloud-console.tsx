@@ -7,6 +7,7 @@ import { defaultGlamsterdamProbe } from "@/lib/glamsterdam-probes";
 type Target = { id: string; name: string; created_at: string };
 type ScenarioInput = { description: string; kind: "string" | "address" | "quantity" | "block_tag" | "json"; required: boolean; default?: unknown };
 type Scenario = { id: string; name: string; checksum: string; updated_at: string; inputs: Record<string, ScenarioInput> };
+type ScenarioDetail = { id: string; name: string; yaml_source: string };
 type Run = { id: string; status: string; scenario_name: string; created_at: string; action_count: number };
 type RunDetail = { id: string; status: string; created_at: string; completed_at: string | null; error_message: string | null; report_json: unknown | null };
 type CloudData = { targets: Target[]; scenarios: Scenario[]; runs: Run[] };
@@ -18,8 +19,10 @@ export function CloudConsole() {
   const [targetName, setTargetName] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
   const [targetHeaders, setTargetHeaders] = useState("{}");
+  const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [scenarioName, setScenarioName] = useState<string>(defaultGlamsterdamProbe.title);
   const [scenarioYaml, setScenarioYaml] = useState<string>(defaultGlamsterdamProbe.yaml);
+  const [editingScenario, setEditingScenario] = useState<string | null>(null);
   const [runScenario, setRunScenario] = useState("");
   const [baselineTarget, setBaselineTarget] = useState("");
   const [candidateTarget, setCandidateTarget] = useState("");
@@ -63,14 +66,15 @@ export function CloudConsole() {
     setMessage("");
     try {
       const headers = JSON.parse(targetHeaders) as Record<string, string>;
-      const response = await fetch("/api/v1/targets", {
-        method: "POST",
+      const response = await fetch(editingTarget ? `/api/v1/targets/${editingTarget}` : "/api/v1/targets", {
+        method: editingTarget ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: targetName, endpointUrl: targetUrl, headers }),
       });
       if (!response.ok) throw new Error(await responseMessage(response));
-      setTargetName(""); setTargetUrl(""); setTargetHeaders("{}");
       await load();
+      setTargetName(""); setTargetUrl(""); setTargetHeaders("{}"); setEditingTarget(null);
+      setMessage(editingTarget ? "Target updated." : "Target saved.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Target could not be saved.");
     }
@@ -80,13 +84,15 @@ export function CloudConsole() {
     event.preventDefault();
     setMessage("");
     try {
-      const response = await fetch("/api/v1/scenarios", {
-        method: "POST",
+      const response = await fetch(editingScenario ? `/api/v1/scenarios/${editingScenario}` : "/api/v1/scenarios", {
+        method: editingScenario ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: scenarioName, yamlSource: scenarioYaml }),
       });
       if (!response.ok) throw new Error(await responseMessage(response));
       await load();
+      setEditingScenario(null);
+      setMessage(editingScenario ? "Scenario updated." : "Scenario saved.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Scenario could not be saved.");
     }
@@ -139,6 +145,55 @@ export function CloudConsole() {
     }
   }
 
+  function editTarget(target: Target) {
+    setEditingTarget(target.id);
+    setTargetName(target.name);
+    setTargetUrl("");
+    setTargetHeaders("{}");
+    setMessage("Enter a replacement endpoint and headers. Saved credentials stay hidden.");
+  }
+
+  async function deleteTarget(id: string) {
+    setMessage("");
+    try {
+      const response = await fetch(`/api/v1/targets/${id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error(await responseMessage(response));
+      if (editingTarget === id) { setEditingTarget(null); setTargetName(""); setTargetUrl(""); setTargetHeaders("{}"); }
+      await load();
+      setMessage("Target deleted.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Target could not be deleted.");
+    }
+  }
+
+  async function editScenario(id: string) {
+    setMessage("");
+    try {
+      const response = await fetch(`/api/v1/scenarios/${id}`);
+      if (!response.ok) throw new Error(await responseMessage(response));
+      const body = await response.json() as { scenario: ScenarioDetail };
+      setEditingScenario(id);
+      setScenarioName(body.scenario.name);
+      setScenarioYaml(body.scenario.yaml_source);
+      setMessage("Edit the scenario and save it when ready.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Scenario could not load.");
+    }
+  }
+
+  async function deleteScenario(id: string) {
+    setMessage("");
+    try {
+      const response = await fetch(`/api/v1/scenarios/${id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error(await responseMessage(response));
+      if (editingScenario === id) { setEditingScenario(null); setScenarioName(defaultGlamsterdamProbe.title); setScenarioYaml(defaultGlamsterdamProbe.yaml); }
+      await load();
+      setMessage("Scenario deleted.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Scenario could not be deleted.");
+    }
+  }
+
   if (state === "loading") return <section className="panel cloud-console"><p className="empty-report">Loading Cloud workspace.</p></section>;
   if (state === "signed-out") return <section className="panel cloud-console"><h2>Connect a wallet for Cloud history</h2><p className="empty-report">Use the Cloud sign-in control. Local mode does not need a wallet.</p></section>;
   if (state === "error") return <section className="panel cloud-console"><h2>Cloud is not ready</h2><p className="form-error">{message}</p></section>;
@@ -148,20 +203,22 @@ export function CloudConsole() {
       <p className="cloud-message" role="status">{message}</p>
       <div className="cloud-grid">
         <form className="panel cloud-form" onSubmit={createTarget}>
-          <div><span className="eyebrow">1. Secure targets</span><h2>Add a target</h2></div>
+          <div><span className="eyebrow">1. Secure targets</span><h2>{editingTarget ? "Rotate a target" : "Add a target"}</h2></div>
           <label className="field"><span>Name</span><input value={targetName} onChange={(event) => setTargetName(event.target.value)} required /></label>
           <label className="field"><span>HTTPS endpoint</span><input value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} type="url" required /></label>
           <label className="field"><span>Headers JSON</span><textarea value={targetHeaders} onChange={(event) => setTargetHeaders(event.target.value)} spellCheck="false" /></label>
-          <button className="secondary-button" type="submit">Save encrypted target</button>
-          <CloudList title="Saved targets" items={data.targets.map((target) => target.name)} empty="No targets yet." />
+          <button className="secondary-button" type="submit">{editingTarget ? "Update encrypted target" : "Save encrypted target"}</button>
+          {editingTarget && <button className="text-button" type="button" onClick={() => { setEditingTarget(null); setTargetName(""); setTargetUrl(""); setTargetHeaders("{}"); }}>Cancel target edit</button>}
+          <CloudResourceList title="Saved targets" items={data.targets} empty="No targets yet." editLabel="Rotate" onEdit={(target) => editTarget(target)} onDelete={(target) => void deleteTarget(target.id)} />
         </form>
 
         <form className="panel cloud-form" onSubmit={createScenario}>
-          <div><span className="eyebrow">2. Versioned scenarios</span><h2>Save a scenario</h2></div>
+          <div><span className="eyebrow">2. Versioned scenarios</span><h2>{editingScenario ? "Edit a scenario" : "Save a scenario"}</h2></div>
           <label className="field"><span>Name</span><input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} required /></label>
           <label className="field"><span>YAML</span><textarea className="cloud-editor" value={scenarioYaml} onChange={(event) => setScenarioYaml(event.target.value)} spellCheck="false" required /></label>
-          <button className="secondary-button" type="submit">Save scenario</button>
-          <CloudList title="Saved scenarios" items={data.scenarios.map((scenario) => scenario.name)} empty="No scenarios yet." />
+          <button className="secondary-button" type="submit">{editingScenario ? "Update scenario" : "Save scenario"}</button>
+          {editingScenario && <button className="text-button" type="button" onClick={() => { setEditingScenario(null); setScenarioName(defaultGlamsterdamProbe.title); setScenarioYaml(defaultGlamsterdamProbe.yaml); }}>Cancel scenario edit</button>}
+          <CloudResourceList title="Saved scenarios" items={data.scenarios} empty="No scenarios yet." onEdit={(scenario) => void editScenario(scenario.id)} onDelete={(scenario) => void deleteScenario(scenario.id)} />
         </form>
       </div>
 
@@ -183,8 +240,8 @@ export function CloudConsole() {
   );
 }
 
-function CloudList({ title, items, empty }: { title: string; items: string[]; empty: string }) {
-  return <div className="cloud-list"><strong>{title}</strong>{items.length === 0 ? <span>{empty}</span> : items.map((item) => <span key={item}>{item}</span>)}</div>;
+function CloudResourceList<T extends { id: string; name: string }>({ title, items, empty, editLabel = "Edit", onEdit, onDelete }: { title: string; items: T[]; empty: string; editLabel?: string; onEdit: (item: T) => void; onDelete: (item: T) => void }) {
+  return <div className="cloud-list"><strong>{title}</strong>{items.length === 0 ? <span>{empty}</span> : items.map((item) => <div className="cloud-resource" key={item.id}><span>{item.name}</span><span><button className="text-button" type="button" onClick={() => onEdit(item)}>{editLabel}</button><button className="text-button warning-button" type="button" onClick={() => onDelete(item)}>Delete</button></span></div>)}</div>;
 }
 
 async function responseMessage(response: Response): Promise<string> {

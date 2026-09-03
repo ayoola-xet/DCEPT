@@ -19,6 +19,11 @@ run stores the scenario source and input values that it uses. These functions
 need the Cloud environment values and database schema. They do not affect the
 public local-run page.
 
+Use **Edit** for a scenario. Use **Rotate** for a target. A target rotation
+requires a replacement endpoint and header set. The console never reads saved
+target credentials. You can delete a target or scenario only when no run uses
+it. This keeps historical run records valid.
+
 ## No-login local-run page
 
 The `/` page is a public local-run workspace. It does not need `.env.local`.
