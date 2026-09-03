@@ -137,7 +137,7 @@ export default function LocalRunPage() {
             <div><span className="eyebrow">Output</span><h2>Protocol diff report</h2></div>
             {report && <span className={`status-label ${report.has_findings ? "finding" : ""}`}>{report.has_findings ? "Finding" : "Matched"}</span>}
           </div>
-          {report?.probe && <p className="probe-report-context">{report.probe.upgrade} · {report.probe.eips.join(", ")} · {report.probe.category} · {report.probe.risk} risk</p>}
+          {report?.probe && <p className="probe-report-context">{report.probe.upgrade} · {report.probe.eips.join(", ")} · {report.probe.category} · {report.probe.risk} risk{report.probe.fixture_release ? ` · ${report.probe.fixture_release}` : ""}</p>}
           {!report && <p className="empty-report">Run a scenario to view response differences.</p>}
           {report?.actions.map((action) => (
             <article className="action-report" key={action.id}>

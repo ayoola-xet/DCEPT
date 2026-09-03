@@ -6,6 +6,7 @@ probe:
   eips: ["EIP-2780", "EIP-7981", "EIP-8037", "EIP-8038"]
   category: gas_repricing
   risk: high
+  fixture_release: tests-glamsterdam-devnet@v7.2.1
   sources:
     - https://eips.ethereum.org/EIPS/eip-8007
 inputs:

@@ -7,8 +7,8 @@ const comparison = z.object({
 }).default({ ignore_paths: [], numeric_tolerances: [] });
 const assertion = z.object({
   path: z.string().refine((value) => value === "" || value.startsWith("/"), "Assertion path must be a JSON pointer."),
-  equals: z.unknown().optional(), contains_all: z.array(z.unknown()).default([]),
-}).refine((value) => (value.equals !== undefined) !== (value.contains_all.length > 0), "An assertion needs exactly one of equals or contains_all.");
+  equals: z.unknown().optional(), contains_all: z.array(z.unknown()).default([]), has_keys: z.array(z.string().min(1)).default([]),
+}).refine((value) => Number(value.equals !== undefined) + Number(value.contains_all.length > 0) + Number(value.has_keys.length > 0) === 1, "An assertion needs exactly one of equals, contains_all, or has_keys.");
 const expectations = z.object({ baseline: z.array(assertion).default([]), candidate: z.array(assertion).default([]) }).default({ baseline: [], candidate: [] });
 
 const rpcAction = z.object({
@@ -31,7 +31,7 @@ const fuzz = z.object({
 });
 const probe = z.object({
   upgrade: z.string().min(1), eips: z.array(z.string().min(1)).min(1), category: z.string().min(1), risk: z.string().min(1),
-  sources: z.array(z.url()).default([]),
+  fixture_release: z.string().min(1).optional(), sources: z.array(z.url()).default([]),
 });
 const scenarioInput = z.object({
   description: z.string().min(1), kind: z.enum(["string", "address", "quantity", "block_tag", "json"]).default("string"),

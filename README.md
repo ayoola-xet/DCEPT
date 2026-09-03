@@ -159,6 +159,10 @@ Use targets with the same chain state and a post-fork block. Engine API probes
 need a JWT header on each target. See [probes/README.md](probes/README.md) for
 probe requirements and fixture use.
 
+Use `glamprobe fixture inspect` and `glamprobe fixture new-payload-v5-params`
+to export an official `blockchain_test_engine` fixture directive. Pass the JSON
+file to a probe with `--var-file NAME=PATH`.
+
 Each probe can include target assertions. Assertions fail when a target misses a
 required protocol capability, even when both target responses are identical.
 

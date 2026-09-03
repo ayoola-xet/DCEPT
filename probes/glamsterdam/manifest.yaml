@@ -2,6 +2,7 @@ version: 1
 id: glamsterdam
 title: Glamsterdam differential probe pack
 status: devnet
+fixture_release: tests-glamsterdam-devnet@v7.2.1
 scope:
   - EIP-7928 block-level access lists and Amsterdam Engine API versions
   - EIP-2780, EIP-7981, EIP-8037, and EIP-8038 gas repricing

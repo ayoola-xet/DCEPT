@@ -11,6 +11,7 @@ probe:
   eips: ["EIP-2780", "EIP-7981", "EIP-8037", "EIP-8038"]
   category: gas_repricing
   risk: high
+  fixture_release: tests-glamsterdam-devnet@v7.2.1
   sources: ["https://eips.ethereum.org/EIPS/eip-8007"]
 inputs:
   sender:
@@ -59,6 +60,7 @@ probe:
   eips: ["EIP-7928"]
   category: engine_api
   risk: critical
+  fixture_release: tests-glamsterdam-devnet@v7.2.1
   sources:
     - https://eips.ethereum.org/EIPS/eip-7928
     - https://github.com/ethereum/execution-apis/blob/main/src/engine/amsterdam.md
@@ -106,6 +108,7 @@ probe:
   eips: ["EIP-7928"]
   category: block_access_list
   risk: critical
+  fixture_release: tests-glamsterdam-devnet@v7.2.1
   sources:
     - https://eips.ethereum.org/EIPS/eip-7928
 inputs:
@@ -122,6 +125,13 @@ actions:
     id: payload-body-with-block-access-list
     method: engine_getPayloadBodiesByRangeV2
     params: ["{{first_block}}", "{{count}}"]
+    expect:
+      baseline:
+        - path: /result/0
+          has_keys: [blockAccessList]
+      candidate:
+        - path: /result/0
+          has_keys: [blockAccessList]
 `,
   },
 ] as const;

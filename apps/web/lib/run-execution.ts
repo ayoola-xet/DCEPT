@@ -17,7 +17,7 @@ type StoredRun = {
 type Target = { endpoint: string; headers: Record<string, string> };
 type Operation = { response: unknown | null; error: string | null; duration_ms: number };
 export type RunReport = { schema_version: 1; scenario_name: string; probe?: HostedScenario["probe"]; actions: ActionReport[]; fuzz?: { seed: number; cases: FuzzCaseReport[] }; has_findings: boolean };
-type AssertionFailure = { target: "baseline" | "candidate"; path: string; rule: "equals" | "contains_all"; expected: unknown; actual: unknown | null };
+type AssertionFailure = { target: "baseline" | "candidate"; path: string; rule: "equals" | "contains_all" | "has_keys"; expected: unknown; actual: unknown | null };
 type ActionReport = { id: string; baseline: Operation; candidate: Operation; diffs: unknown[]; assertion_failures: AssertionFailure[] };
 type FuzzCaseReport = { index: number; mutations: unknown[]; actions: ActionReport[]; has_findings: boolean };
 
@@ -161,6 +161,10 @@ function evaluateAssertions(
       const contains = Array.isArray(actual) ? actual.some((value) => JSON.stringify(value) === JSON.stringify(expected))
         : typeof actual === "string" && typeof expected === "string" && actual.includes(expected);
       if (!contains) failures.push({ target, path: assertion.path, rule: "contains_all", expected, actual });
+    }
+    for (const expected of assertion.has_keys) {
+      const contains = typeof actual === "object" && actual !== null && !Array.isArray(actual) && expected in actual;
+      if (!contains) failures.push({ target, path: assertion.path, rule: "has_keys", expected, actual });
     }
   }
   return failures;

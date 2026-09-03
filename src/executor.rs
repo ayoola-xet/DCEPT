@@ -216,6 +216,22 @@ fn evaluate_assertions(
                 });
             }
         }
+        for required in &assertion.has_keys {
+            let contains = actual.as_ref().is_some_and(|value| {
+                value
+                    .as_object()
+                    .is_some_and(|object| object.contains_key(required))
+            });
+            if !contains {
+                failures.push(AssertionFailure {
+                    target: target.to_owned(),
+                    path: assertion.path.clone(),
+                    rule: "has_keys".to_owned(),
+                    expected: Value::String(required.clone()),
+                    actual: actual.clone(),
+                });
+            }
+        }
     }
     failures
 }
@@ -458,10 +474,29 @@ mod tests {
             path: "/result".to_owned(),
             equals: None,
             contains_all: vec![json!("engine_newPayloadV5")],
+            has_keys: Vec::new(),
         }];
         let failures = evaluate_assertions("candidate", &operation, &assertions);
         assert_eq!(failures.len(), 1);
         assert_eq!(failures[0].target, "candidate");
         assert_eq!(failures[0].rule, "contains_all");
+    }
+
+    #[test]
+    fn reports_a_missing_required_payload_body_key() {
+        let operation = OperationResult {
+            response: Some(json!({"result": [{}]})),
+            error: None,
+            duration_ms: 1,
+        };
+        let assertions = vec![ResponseAssertion {
+            path: "/result/0".to_owned(),
+            equals: None,
+            contains_all: Vec::new(),
+            has_keys: vec!["blockAccessList".to_owned()],
+        }];
+        let failures = evaluate_assertions("baseline", &operation, &assertions);
+        assert_eq!(failures.len(), 1);
+        assert_eq!(failures[0].rule, "has_keys");
     }
 }

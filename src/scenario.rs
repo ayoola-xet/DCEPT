@@ -31,6 +31,8 @@ pub struct ProbeMetadata {
     pub category: String,
     pub risk: String,
     #[serde(default)]
+    pub fixture_release: Option<String>,
+    #[serde(default)]
     pub sources: Vec<String>,
 }
 
@@ -163,6 +165,13 @@ impl Scenario {
                 return Err(ScenarioError::InvalidProbeMetadata);
             }
             if probe.eips.is_empty() || probe.eips.iter().any(|eip| eip.trim().is_empty()) {
+                return Err(ScenarioError::InvalidProbeMetadata);
+            }
+            if probe
+                .fixture_release
+                .as_ref()
+                .is_some_and(|release| release.trim().is_empty())
+            {
                 return Err(ScenarioError::InvalidProbeMetadata);
             }
         }
@@ -428,6 +437,8 @@ pub struct ResponseAssertion {
     pub equals: Option<Value>,
     #[serde(default)]
     pub contains_all: Vec<Value>,
+    #[serde(default)]
+    pub has_keys: Vec<String>,
 }
 
 impl TargetExpectations {
@@ -439,7 +450,10 @@ impl TargetExpectations {
                     path: assertion.path.clone(),
                 });
             }
-            if assertion.equals.is_some() == !assertion.contains_all.is_empty() {
+            let rule_count = usize::from(assertion.equals.is_some())
+                + usize::from(!assertion.contains_all.is_empty())
+                + usize::from(!assertion.has_keys.is_empty());
+            if rule_count != 1 {
                 return Err(ScenarioError::InvalidAssertion {
                     action: action.to_owned(),
                     path: assertion.path.clone(),
@@ -656,7 +670,7 @@ pub enum ScenarioError {
     #[error("assertion for action '{action}' has invalid JSON pointer path '{path}'")]
     InvalidAssertionPath { action: String, path: String },
     #[error(
-        "assertion for action '{action}' at '{path}' needs exactly one of equals or contains_all"
+        "assertion for action '{action}' at '{path}' needs exactly one of equals, contains_all, or has_keys"
     )]
     InvalidAssertion { action: String, path: String },
     #[error("fuzz configuration is required")]

@@ -24,6 +24,33 @@ from the selected `ethereum/execution-specs` Glamsterdam test release. Pin the
 fixture release in your test record. The devnet specification can change before
 mainnet.
 
+## Use an official Engine API fixture
+
+Download and extract the needed `blockchain_test_engine` JSON fixture from the
+release pinned in `manifest.yaml`. Do not edit the fixture payload.
+
+```sh
+glamprobe fixture inspect fixture.json
+glamprobe fixture new-payload-v5-params fixture.json \
+  --case missing_block_access_list \
+  --output new-payload-params.json
+```
+
+Run the malformed block-access-list probe with the exported params:
+
+```sh
+glamprobe probe run glamsterdam/malformed-block-access-list \
+  --baseline http://baseline-engine.example \
+  --candidate http://candidate-engine.example \
+  --baseline-header 'Authorization: Bearer BASELINE_JWT' \
+  --candidate-header 'Authorization: Bearer CANDIDATE_JWT' \
+  --var-file new_payload_params=new-payload-params.json
+```
+
+The fixture must match the genesis state and fork configuration of both targets.
+GlamProbe sends the selected Engine API directive. It does not create fixture
+genesis state or start clients for you.
+
 ## Run a probe
 
 List available probes:

@@ -3,7 +3,7 @@ import type { HostedAction, HostedScenario } from "./hosted-scenario";
 
 export type PublicTarget = { endpoint: string };
 export type PublicOperation = { response: unknown | null; error: string | null; duration_ms: number };
-export type PublicAssertionFailure = { target: "baseline" | "candidate"; path: string; rule: "equals" | "contains_all"; expected: unknown; actual: unknown | null };
+export type PublicAssertionFailure = { target: "baseline" | "candidate"; path: string; rule: "equals" | "contains_all" | "has_keys"; expected: unknown; actual: unknown | null };
 export type PublicActionReport = { id: string; baseline: PublicOperation; candidate: PublicOperation; diffs: unknown[]; assertion_failures: PublicAssertionFailure[] };
 export type PublicRunReport = { schema_version: 1; scenario_name: string; probe?: HostedScenario["probe"]; actions: PublicActionReport[]; has_findings: boolean };
 export type Comparator = (baseline: unknown, candidate: unknown, comparison: HostedAction["comparison"]) => unknown[];
@@ -97,6 +97,10 @@ function evaluateAssertions(
       const contains = Array.isArray(actual) ? actual.some((value) => JSON.stringify(value) === JSON.stringify(expected))
         : typeof actual === "string" && typeof expected === "string" && actual.includes(expected);
       if (!contains) failures.push({ target, path: assertion.path, rule: "contains_all", expected, actual });
+    }
+    for (const expected of assertion.has_keys) {
+      const contains = typeof actual === "object" && actual !== null && !Array.isArray(actual) && expected in actual;
+      if (!contains) failures.push({ target, path: assertion.path, rule: "has_keys", expected, actual });
     }
   }
   return failures;

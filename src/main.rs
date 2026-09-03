@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 use glamprobe::{
     RunOptions, Scenario, Target, TargetPair, execute_fuzz, execute_scenario,
     executor::headers_from_pairs,
+    fixtures::{inspect_engine_fixture, new_payload_v5_params},
     minimize_actions,
     probes::{built_in_probes, load_built_in_probe},
 };
@@ -64,6 +65,11 @@ enum Command {
         #[command(subcommand)]
         command: ProbeCommand,
     },
+    /// Inspect and export official execution-spec Engine API fixture data.
+    Fixture {
+        #[command(subcommand)]
+        command: FixtureCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -82,11 +88,30 @@ enum ProbeCommand {
     },
 }
 
+#[derive(Debug, Subcommand)]
+enum FixtureCommand {
+    /// List fixture cases, payload counts, and Engine API versions.
+    Inspect { fixture: PathBuf },
+    /// Export one engine_newPayloadV5 directive as a JSON-RPC params array.
+    NewPayloadV5Params {
+        fixture: PathBuf,
+        #[arg(long = "case")]
+        fixture_case: String,
+        #[arg(long, default_value_t = 0)]
+        index: usize,
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
+}
+
 #[derive(Debug, clap::Args, Default)]
 struct InputArguments {
     /// Set a named scenario input. VALUE can be a JSON value or a plain string.
     #[arg(long = "var", value_name = "NAME=VALUE")]
     variables: Vec<String>,
+    /// Load a named input from a JSON file. Use NAME=PATH.
+    #[arg(long = "var-file", value_name = "NAME=PATH")]
+    variable_files: Vec<String>,
 }
 
 #[derive(Debug, clap::Args)]
@@ -114,7 +139,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Command::Validate { scenario, inputs } => {
-            let scenario = read_scenario(&scenario, &inputs.variables)?;
+            let scenario = read_scenario(&scenario, &inputs)?;
             println!("Scenario '{}' is valid.", scenario.name);
         }
         Command::Run {
@@ -122,7 +147,7 @@ async fn main() -> Result<()> {
             targets,
             output,
         } => {
-            let scenario = read_scenario(&scenario, &targets.inputs.variables)?;
+            let scenario = read_scenario(&scenario, &targets.inputs)?;
             let timeout = targets.timeout_secs;
             let targets = target_pair(targets)?;
             let report = execute_scenario(
@@ -151,7 +176,7 @@ async fn main() -> Result<()> {
             seed,
             output,
         } => {
-            let scenario = read_scenario(&scenario, &targets.inputs.variables)?;
+            let scenario = read_scenario(&scenario, &targets.inputs)?;
             let options = RunOptions {
                 timeout: Duration::from_secs(targets.timeout_secs),
             };
@@ -173,7 +198,7 @@ async fn main() -> Result<()> {
             targets,
             output,
         } => {
-            let scenario = read_scenario(&scenario, &targets.inputs.variables)?;
+            let scenario = read_scenario(&scenario, &targets.inputs)?;
             let options = RunOptions {
                 timeout: Duration::from_secs(targets.timeout_secs),
             };
@@ -202,7 +227,7 @@ async fn main() -> Result<()> {
                 targets,
                 output,
             } => {
-                let supplied = parse_input_pairs(&targets.inputs.variables)?;
+                let supplied = parse_input_arguments(&targets.inputs)?;
                 let scenario = load_built_in_probe(&id)?.resolve_inputs(&supplied)?;
                 let timeout = targets.timeout_secs;
                 let targets = target_pair(targets)?;
@@ -226,22 +251,50 @@ async fn main() -> Result<()> {
                 }
             }
         },
+        Command::Fixture { command } => match command {
+            FixtureCommand::Inspect { fixture } => {
+                let source = read_fixture(&fixture)?;
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&inspect_engine_fixture(&source)?)?
+                );
+            }
+            FixtureCommand::NewPayloadV5Params {
+                fixture,
+                fixture_case,
+                index,
+                output,
+            } => {
+                let params = new_payload_v5_params(&read_fixture(&fixture)?, &fixture_case, index)?;
+                let rendered = serde_json::to_string_pretty(&params)?;
+                if let Some(output) = output {
+                    fs::write(&output, &rendered)
+                        .with_context(|| format!("could not write {}", output.display()))?;
+                } else {
+                    println!("{rendered}");
+                }
+            }
+        },
     }
     Ok(())
 }
 
-fn read_scenario(path: &PathBuf, pairs: &[String]) -> Result<Scenario> {
+fn read_scenario(path: &PathBuf, inputs: &InputArguments) -> Result<Scenario> {
     let source =
         fs::read_to_string(path).with_context(|| format!("could not read {}", path.display()))?;
     let scenario = Scenario::from_yaml(&source).map_err(anyhow::Error::new)?;
     scenario
-        .resolve_inputs(&parse_input_pairs(pairs)?)
+        .resolve_inputs(&parse_input_arguments(inputs)?)
         .map_err(anyhow::Error::new)
 }
 
-fn parse_input_pairs(pairs: &[String]) -> Result<BTreeMap<String, serde_json::Value>> {
+fn read_fixture(path: &PathBuf) -> Result<String> {
+    fs::read_to_string(path).with_context(|| format!("could not read fixture {}", path.display()))
+}
+
+fn parse_input_arguments(inputs: &InputArguments) -> Result<BTreeMap<String, serde_json::Value>> {
     let mut values = BTreeMap::new();
-    for pair in pairs {
+    for pair in &inputs.variables {
         let (name, value) = pair
             .split_once('=')
             .ok_or_else(|| anyhow::anyhow!("input '{pair}' must use NAME=VALUE"))?;
@@ -250,6 +303,21 @@ fn parse_input_pairs(pairs: &[String]) -> Result<BTreeMap<String, serde_json::Va
         }
         let value = serde_json::from_str(value)
             .unwrap_or_else(|_| serde_json::Value::String(value.to_owned()));
+        if values.insert(name.to_owned(), value).is_some() {
+            anyhow::bail!("input '{name}' was set more than once");
+        }
+    }
+    for pair in &inputs.variable_files {
+        let (name, path) = pair
+            .split_once('=')
+            .ok_or_else(|| anyhow::anyhow!("input file '{pair}' must use NAME=PATH"))?;
+        if name.trim().is_empty() {
+            anyhow::bail!("input name is required");
+        }
+        let source = fs::read_to_string(path)
+            .with_context(|| format!("could not read input file {path}"))?;
+        let value = serde_json::from_str(&source)
+            .with_context(|| format!("input file {path} is not valid JSON"))?;
         if values.insert(name.to_owned(), value).is_some() {
             anyhow::bail!("input '{name}' was set more than once");
         }
