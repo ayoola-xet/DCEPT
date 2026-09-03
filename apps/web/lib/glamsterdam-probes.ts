@@ -111,6 +111,7 @@ probe:
   fixture_release: tests-glamsterdam-devnet@v7.2.1
   sources:
     - https://eips.ethereum.org/EIPS/eip-7928
+    - https://github.com/ethereum/execution-apis/blob/main/src/engine/amsterdam.md
 inputs:
   first_block:
     description: A known post-Glamsterdam execution block number in hexadecimal quantity form.
@@ -132,6 +133,34 @@ actions:
       candidate:
         - path: /result/0
           has_keys: [blockAccessList]
+`,
+  },
+  {
+    id: "glamsterdam/malformed-block-access-list",
+    title: "Malformed block access list rejection",
+    detail: "EIP-7928. Uses an official malformed Engine API fixture. Run this probe with the local CLI and authenticated Engine targets.",
+    yaml: `version: 1
+name: glamsterdam-malformed-block-access-list
+description: Compare rejection of an invalid EIP-7928 block access list with an official Engine API fixture.
+probe:
+  upgrade: glamsterdam
+  eips: ["EIP-7928"]
+  category: engine_validation
+  risk: critical
+  fixture_release: tests-glamsterdam-devnet@v7.2.1
+  sources:
+    - https://eips.ethereum.org/EIPS/eip-7928
+    - https://github.com/ethereum/execution-specs/releases
+inputs:
+  new_payload_params:
+    description: The full JSON params array from an official malformed or missing blockAccessList engine_newPayloadV5 fixture.
+    kind: json
+    required: true
+actions:
+  - kind: rpc
+    id: reject-malformed-block-access-list
+    method: engine_newPayloadV5
+    params: "{{new_payload_params}}"
 `,
   },
   {

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:probes": "node scripts/verify-probe-pack.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "1.1.0",
