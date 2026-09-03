@@ -15,9 +15,10 @@ It is not part of the Rust build. A local user does not need this directory, Nod
 After Cloud sign-in, open `/runs`. The console lets a team save encrypted
 target settings, save versioned scenarios, queue a durable run, and view recent
 run status. It shows the declared scenario inputs before it queues a run. Each
-run stores the scenario source and input values that it uses. These functions
-need the Cloud environment values and database schema. They do not affect the
-public local-run page.
+run stores the scenario source, input values, and encrypted target settings
+that it uses. A later target rotation does not change a queued run. These
+functions need the Cloud environment values and database schema. They do not
+affect the public local-run page.
 
 Use **Edit** for a scenario. Use **Rotate** for a target. A target rotation
 requires a replacement endpoint and header set. The console never reads saved

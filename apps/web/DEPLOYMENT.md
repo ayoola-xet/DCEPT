@@ -34,7 +34,8 @@ Use a different `ENCRYPTION_KEY` and `SESSION_SECRET` for preview and production
 
 1. Create the Neon database.
 2. Apply `db/schema.sql` to a new database. Apply each file in `db/migrations`
-   in name order to an existing database.
+   in name order to an existing database. The migrations create scenario and
+   encrypted target snapshots for existing runs.
 3. Set the required environment values in Vercel.
 4. Deploy the `apps/web` directory.
 5. Connect a wallet and create a target, scenario, and run.

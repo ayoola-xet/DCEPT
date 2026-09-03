@@ -75,10 +75,10 @@ async function loadRun(runId: string): Promise<StoredRun> {
     SELECT r.status, r.organization_id, r.report_json,
       COALESCE(r.scenario_yaml_source, s.yaml_source) AS scenario_yaml_source,
       r.input_values,
-      baseline.endpoint_ciphertext AS baseline_endpoint_ciphertext,
-      baseline.headers_ciphertext AS baseline_headers_ciphertext,
-      candidate.endpoint_ciphertext AS candidate_endpoint_ciphertext,
-      candidate.headers_ciphertext AS candidate_headers_ciphertext
+      COALESCE(r.baseline_endpoint_ciphertext, baseline.endpoint_ciphertext) AS baseline_endpoint_ciphertext,
+      COALESCE(r.baseline_headers_ciphertext, baseline.headers_ciphertext) AS baseline_headers_ciphertext,
+      COALESCE(r.candidate_endpoint_ciphertext, candidate.endpoint_ciphertext) AS candidate_endpoint_ciphertext,
+      COALESCE(r.candidate_headers_ciphertext, candidate.headers_ciphertext) AS candidate_headers_ciphertext
     FROM runs r
     JOIN scenarios s ON s.id = r.scenario_id AND s.organization_id = r.organization_id
     JOIN targets baseline ON baseline.id = r.baseline_target_id AND baseline.organization_id = r.organization_id

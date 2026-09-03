@@ -41,7 +41,8 @@ export async function POST(request: NextRequest) {
   const sql = database();
   const scenarios = await sql`SELECT yaml_source FROM scenarios WHERE id = ${parsed.data.scenarioId} AND organization_id = ${session.organizationId} LIMIT 1`;
   const targets = await sql`
-    SELECT id FROM targets WHERE organization_id = ${session.organizationId} AND id = ANY(${[parsed.data.baselineTargetId, parsed.data.candidateTargetId]})
+    SELECT id, endpoint_ciphertext, headers_ciphertext FROM targets
+    WHERE organization_id = ${session.organizationId} AND id = ANY(${[parsed.data.baselineTargetId, parsed.data.candidateTargetId]})
   `;
   if (!scenarios[0] || targets.length !== 2) return NextResponse.json({ error: "Scenario or target does not exist in this organization." }, { status: 404 });
   let caseCount: number;
@@ -70,9 +71,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "The organization has reached its monthly case limit." }, { status: 429 });
   }
   const id = newId();
+  const baseline = targets.find((target) => target.id === parsed.data.baselineTargetId);
+  const candidate = targets.find((target) => target.id === parsed.data.candidateTargetId);
+  if (!baseline || !candidate) return NextResponse.json({ error: "Scenario or target does not exist in this organization." }, { status: 404 });
   await sql`
-    INSERT INTO runs (id, organization_id, scenario_id, baseline_target_id, candidate_target_id, scenario_yaml_source, input_values, case_count, status)
-    VALUES (${id}, ${session.organizationId}, ${parsed.data.scenarioId}, ${parsed.data.baselineTargetId}, ${parsed.data.candidateTargetId}, ${scenarios[0].yaml_source as string}, ${JSON.stringify(parsed.data.inputValues)}::jsonb, ${caseCount}, 'queued')
+    INSERT INTO runs (id, organization_id, scenario_id, baseline_target_id, candidate_target_id, baseline_endpoint_ciphertext, baseline_headers_ciphertext, candidate_endpoint_ciphertext, candidate_headers_ciphertext, scenario_yaml_source, input_values, case_count, status)
+    VALUES (${id}, ${session.organizationId}, ${parsed.data.scenarioId}, ${parsed.data.baselineTargetId}, ${parsed.data.candidateTargetId}, ${baseline.endpoint_ciphertext as string}, ${baseline.headers_ciphertext as string}, ${candidate.endpoint_ciphertext as string}, ${candidate.headers_ciphertext as string}, ${scenarios[0].yaml_source as string}, ${JSON.stringify(parsed.data.inputValues)}::jsonb, ${caseCount}, 'queued')
   `;
   await start(runScenarioWorkflow, [id]);
   return NextResponse.json({ run: { id, status: "queued" } }, { status: 202 });
