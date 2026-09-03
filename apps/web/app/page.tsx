@@ -2,12 +2,16 @@
 
 import { useState, type ChangeEvent } from "react";
 
-import { parseHostedScenario, resolveHostedScenarioInputs } from "@/lib/hosted-scenario";
+import { parseHostedScenario, type HostedScenario } from "@/lib/hosted-scenario";
 import { defaultGlamsterdamProbe, glamsterdamProbes } from "@/lib/glamsterdam-probes";
 import { runPublicScenario, type Comparator, type PublicRunReport } from "@/lib/public-run";
 
 type RunMode = "browser" | "vercel";
-type RustWasm = { default: (input?: RequestInfo | URL | BufferSource | WebAssembly.Module) => Promise<unknown>; compare_json: Comparator };
+type RustWasm = {
+  default: (input?: RequestInfo | URL | BufferSource | WebAssembly.Module) => Promise<unknown>;
+  compare_json: Comparator;
+  resolve_scenario: (source: string, inputs: Record<string, unknown>) => HostedScenario;
+};
 
 export default function LocalRunPage() {
   const [scenarioYaml, setScenarioYaml] = useState<string>(defaultGlamsterdamProbe.yaml);
@@ -45,10 +49,10 @@ export default function LocalRunPage() {
     try {
       if (needsEngineCli) throw new Error("This probe calls the authenticated Engine API. Copy and run the local CLI command below.");
       const inputs = inputValuesFor(inputScenario, inputValues);
-      const scenario = resolveHostedScenarioInputs(parseHostedScenario(scenarioYaml), inputs);
+      const rust = await loadRustCore();
+      const scenario = rust.resolve_scenario(scenarioYaml, inputs);
       if (mode === "browser") {
-        const comparator = await loadRustComparator();
-        setReport(await runPublicScenario(scenario, { endpoint: baseline }, { endpoint: candidate }, comparator));
+        setReport(await runPublicScenario(scenario, { endpoint: baseline }, { endpoint: candidate }, rust.compare_json));
       } else {
         const response = await fetch("/api/public/run", {
           method: "POST",
@@ -212,11 +216,11 @@ export default function LocalRunPage() {
   );
 }
 
-async function loadRustComparator(): Promise<Comparator> {
+async function loadRustCore(): Promise<RustWasm> {
   const modulePath = "/wasm/glamprobe.js";
   const wasm = await import(/* webpackIgnore: true */ modulePath) as unknown as RustWasm;
   await wasm.default();
-  return wasm.compare_json;
+  return wasm;
 }
 
 function tryParseScenario(yamlSource: string) {

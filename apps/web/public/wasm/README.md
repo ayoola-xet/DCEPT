@@ -26,8 +26,13 @@ page. Load a YAML scenario. Then add two public RPC endpoints.
 Browser mode sends requests from the browser. The endpoints must allow CORS.
 It does not send endpoint credentials. Stateless Vercel mode sends requests
 through `/api/public/run`. It accepts public HTTPS endpoints only. It does not
-save run data. It limits each run to 20 actions. It blocks fuzzing and write RPC
-methods. Use the local CLI for authenticated endpoints, fuzzing, or write tests.
+save run data. It limits each run to 20 actions. It blocks fuzzing, credential
+headers, write RPC methods, and write HTTP methods. Use the local CLI for
+authenticated endpoints, fuzzing, or write tests.
+
+The web workspace detects Engine API probes. It gives you a local CLI command
+instead of sending Engine API credentials through the browser or Vercel. You
+can download the selected YAML scenario and run it with your local JWT headers.
 
 ## Current capabilities
 
@@ -40,6 +45,7 @@ methods. Use the local CLI for authenticated endpoints, fuzzing, or write tests.
 - Apply absolute numeric tolerance to JSON numbers and Ethereum hex quantities.
 - Write machine-readable JSON reports.
 - Return exit code `2` when it finds a difference.
+- Run built-in Glamsterdam probes with versioned EIP metadata and typed inputs.
 
 ## Install
 
@@ -130,6 +136,55 @@ glamprobe run scenario.yaml \
 ```
 
 The CLI prints the report to standard output. It exits with `0` when there are no findings, `2` when it finds differences, and `1` for a command error.
+
+## Glamsterdam probe pack
+
+GlamProbe includes built-in probes for the current Glamsterdam devnet scope.
+They cover the Amsterdam Engine API surface, EIP-7928 block access list
+retrieval and validation, EIP-2780/EIP-7981/EIP-8037/EIP-8038 gas estimates,
+and EIP-7732 Gloas Builder API behavior.
+
+```sh
+glamprobe probe list
+glamprobe probe show glamsterdam/engine-api-surface
+```
+
+Run a built-in probe with the same target options as `glamprobe run`.
+
+```sh
+glamprobe probe run glamsterdam/gas-repricing-estimate \
+  --baseline https://baseline-rpc.example \
+  --candidate https://candidate-rpc.example \
+  --var sender=0x0000000000000000000000000000000000000001 \
+  --var recipient=0x0000000000000000000000000000000000000002 \
+  --var block=0x1234
+```
+
+Use targets with the same chain state and a post-fork block. Engine API probes
+need a JWT header on each target. See [probes/README.md](probes/README.md) for
+probe requirements and fixture use.
+
+Use `glamprobe fixture inspect` and `glamprobe fixture new-payload-v5-params`
+to export the `params` array from an official `blockchain_test_engine` fixture
+directive. Pass the JSON file to a probe with `--var-file NAME=PATH`.
+
+Use `glamprobe fixture run` to deliver every `engine_newPayloadV*` directive
+from one fixture case to both targets. When the fixture includes a final head,
+the command also sends `engine_forkchoiceUpdatedV*` and checks that head through
+`eth_getBlockByNumber`. The command checks the expected Engine API status or
+error code for each target. Start each target with the fixture network, genesis
+header, and pre-state before you run this command.
+
+```sh
+glamprobe fixture run fixtures.json --case test_name \
+  --baseline http://baseline-engine.example \
+  --candidate http://candidate-engine.example \
+  --baseline-header 'Authorization: Bearer baseline-jwt' \
+  --candidate-header 'Authorization: Bearer candidate-jwt'
+```
+
+Each probe can include target assertions. Assertions fail when a target misses a
+required protocol capability, even when both target responses are identical.
 
 ## Fuzzing and minimization
 

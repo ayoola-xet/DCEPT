@@ -14,6 +14,22 @@ export function compare_json(baseline, candidate, comparison) {
     }
     return takeFromExternrefTable0(ret[0]);
 }
+
+/**
+ * Parse and resolve a YAML scenario with the same core that powers the CLI.
+ * @param {string} source
+ * @param {any} inputs
+ * @returns {any}
+ */
+export function resolve_scenario(source, inputs) {
+    const ptr0 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.resolve_scenario(ptr0, len0, inputs);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
