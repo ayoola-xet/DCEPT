@@ -18,6 +18,14 @@ inputs:
     description: Optional newline-separated NAME:VALUE headers.
     required: false
     default: ""
+  variables:
+    description: Optional newline-separated NAME=VALUE scenario inputs.
+    required: false
+    default: ""
+  variable-files:
+    description: Optional newline-separated NAME=PATH JSON scenario inputs.
+    required: false
+    default: ""
   report-path:
     description: Path for the JSON report.
     required: false
@@ -31,20 +39,30 @@ runs:
       env:
         BASELINE_HEADERS: ${{ inputs.baseline-headers }}
         CANDIDATE_HEADERS: ${{ inputs.candidate-headers }}
+        VARIABLES: ${{ inputs.variables }}
+        VARIABLE_FILES: ${{ inputs.variable-files }}
       run: |
         baseline_args=()
         candidate_args=()
+        variable_args=()
         while IFS= read -r header; do
           [ -z "$header" ] || baseline_args+=(--baseline-header "$header")
         done <<< "$BASELINE_HEADERS"
         while IFS= read -r header; do
           [ -z "$header" ] || candidate_args+=(--candidate-header "$header")
         done <<< "$CANDIDATE_HEADERS"
+        while IFS= read -r variable; do
+          [ -z "$variable" ] || variable_args+=(--var "$variable")
+        done <<< "$VARIABLES"
+        while IFS= read -r variable_file; do
+          [ -z "$variable_file" ] || variable_args+=(--var-file "$variable_file")
+        done <<< "$VARIABLE_FILES"
         set +e
         cargo run --manifest-path "$GITHUB_ACTION_PATH/../../Cargo.toml" -- run "${{ inputs.scenario }}" \
           --baseline-url "${{ inputs.baseline-url }}" \
           --candidate-url "${{ inputs.candidate-url }}" \
           --output "${{ inputs.report-path }}" \
+          "${variable_args[@]}" \
           "${baseline_args[@]}" "${candidate_args[@]}"
         status=$?
         echo "status=$status" >> "$GITHUB_OUTPUT"

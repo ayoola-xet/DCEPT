@@ -4,6 +4,11 @@ This package tests a JSON-RPC operation through the client or tool that downstre
 
 It supports `ethers`, `viem`, `foundry`, and `hardhat`.
 
+Use the GitHub Action when you need to run a complete YAML scenario. The
+Action accepts newline-separated `variables` and `variable-files` inputs for
+typed Glamsterdam probe values. It adds annotations for response differences
+and required target assertion failures.
+
 ## Input
 
 ```json
