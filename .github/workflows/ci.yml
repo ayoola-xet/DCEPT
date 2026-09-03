@@ -17,6 +17,7 @@ jobs:
       - run: cargo fmt --check
       - run: cargo test
       - run: node scripts/verify-local-run.mjs
+      - run: node scripts/verify-glamsterdam-probes.mjs
       - run: ./scripts/build-wasm.sh
   web:
     runs-on: ubuntu-latest
