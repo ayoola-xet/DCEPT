@@ -7,7 +7,7 @@ edition = "2024"
 crate-type = ["rlib", "cdylib"]
 
 [features]
-default = ["wasm"]
+default = []
 wasm = ["dep:serde-wasm-bindgen", "dep:wasm-bindgen"]
 
 [dependencies]

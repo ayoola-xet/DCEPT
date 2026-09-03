@@ -16,6 +16,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo fmt --check
       - run: cargo test
+      - run: node scripts/verify-local-run.mjs
       - run: ./scripts/build-wasm.sh
   web:
     runs-on: ubuntu-latest

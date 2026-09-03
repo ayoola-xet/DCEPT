@@ -26,9 +26,9 @@ enum Command {
     /// Run a YAML scenario against baseline and candidate targets.
     Run {
         scenario: PathBuf,
-        #[arg(long)]
+        #[arg(long = "baseline", visible_alias = "baseline-url")]
         baseline_url: Url,
-        #[arg(long)]
+        #[arg(long = "candidate", visible_alias = "candidate-url")]
         candidate_url: Url,
         #[arg(long, default_value = "baseline")]
         baseline_name: String,
@@ -69,9 +69,9 @@ enum Command {
 
 #[derive(Debug, clap::Args)]
 struct TargetArguments {
-    #[arg(long)]
+    #[arg(long = "baseline", visible_alias = "baseline-url")]
     baseline_url: Url,
-    #[arg(long)]
+    #[arg(long = "candidate", visible_alias = "candidate-url")]
     candidate_url: Url,
     #[arg(long, default_value = "baseline")]
     baseline_name: String,

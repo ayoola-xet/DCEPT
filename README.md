@@ -6,6 +6,8 @@ It runs the same declared scenario on a baseline target and a candidate target. 
 
 GlamProbe helps teams test an Ethereum upgrade before they use it in production.
 
+The Rust core and CLI are standalone. They do not need a database, wallet, login, Vercel account, session secret, encryption key, or Cloud configuration.
+
 ## Current capabilities
 
 - Read versioned YAML scenarios.
@@ -25,6 +27,17 @@ You need Rust 1.85 or later.
 ```sh
 cargo install --path .
 ```
+
+Or build and run directly from a fresh clone:
+
+```sh
+cargo build
+./target/debug/glamprobe run scenario.yaml \
+  --baseline https://baseline.example/rpc \
+  --candidate https://candidate.example/rpc
+```
+
+Run `cargo install --path .` when you want to use `glamprobe run` without the `./target/debug/` path.
 
 ## Scenario format
 
@@ -80,8 +93,8 @@ Run a scenario.
 
 ```sh
 glamprobe run examples/transfer-to-fresh-address.yaml \
-  --baseline-url https://baseline.example/rpc \
-  --candidate-url https://candidate.example/rpc \
+  --baseline https://baseline.example/rpc \
+  --candidate https://candidate.example/rpc \
   --output report.json
 ```
 
@@ -89,8 +102,8 @@ Pass a target header when an endpoint needs authentication.
 
 ```sh
 glamprobe run scenario.yaml \
-  --baseline-url https://baseline.example/rpc \
-  --candidate-url https://candidate.example/rpc \
+  --baseline https://baseline.example/rpc \
+  --candidate https://candidate.example/rpc \
   --baseline-header 'Authorization: Bearer baseline-token' \
   --candidate-header 'Authorization: Bearer candidate-token'
 ```
@@ -115,8 +128,8 @@ Run the configured cases.
 
 ```sh
 glamprobe fuzz examples/fuzz-estimate-gas.yaml \
-  --baseline-url https://baseline.example/rpc \
-  --candidate-url https://candidate.example/rpc
+  --baseline https://baseline.example/rpc \
+  --candidate https://candidate.example/rpc
 ```
 
 Use `--cases` and `--seed` to override the YAML values. The fuzz report records every applied mutation.
@@ -125,8 +138,8 @@ When a scenario has a finding, reduce it to the smallest action set that still f
 
 ```sh
 glamprobe minimize scenario.yaml \
-  --baseline-url https://baseline.example/rpc \
-  --candidate-url https://candidate.example/rpc \
+  --baseline https://baseline.example/rpc \
+  --candidate https://candidate.example/rpc \
   --output reproducer.yaml
 ```
 
@@ -145,9 +158,9 @@ cargo fmt --check
 cargo test
 ```
 
-## Hosted service
+## Optional GlamProbe Cloud
 
-`apps/web` contains the hosted dashboard and REST API. It uses Sign-In with Ethereum (SIWE) for wallet authentication, Neon PostgreSQL for tenant data, and Vercel Workflow for durable runs.
+`apps/web` contains the optional hosted dashboard and REST API. It depends on the standalone Rust product. It uses Sign-In with Ethereum (SIWE) for wallet authentication, Neon PostgreSQL for tenant data, and Vercel Workflow for durable runs.
 
 Hosted scenarios also support the same `fuzz` block as the CLI. The workflow records the seed, each mutation, and each case report.
 
