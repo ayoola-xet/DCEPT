@@ -76,12 +76,12 @@ export default function LocalRunPage() {
   }
 
   function downloadScenario() {
-    const blob = new Blob([scenarioYaml], { type: "text/yaml" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `${selectedProbe === "custom" ? "glamprobe-scenario" : selectedProbe.replaceAll("/", "-")}.yaml`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    downloadFile(`${selectedProbe === "custom" ? "glamprobe-scenario" : selectedProbe.replaceAll("/", "-")}.yaml`, scenarioYaml, "text/yaml");
+  }
+
+  function downloadReport() {
+    if (!report) return;
+    downloadFile(`${report.scenario_name}-report.json`, JSON.stringify(report, null, 2), "application/json");
   }
 
   return (
@@ -124,6 +124,13 @@ export default function LocalRunPage() {
             </select>
           </label>
           {selectedProbe !== "custom" && <p className="probe-detail">{glamsterdamProbes.find((probe) => probe.id === selectedProbe)?.detail}</p>}
+          {inputScenario?.probe && (
+            <section className="probe-evidence" aria-label="Probe evidence">
+              <span>{inputScenario.probe.upgrade} · {inputScenario.probe.eips.join(", ")} · {inputScenario.probe.risk} risk</span>
+              {inputScenario.probe.fixture_release && <span>Fixture: {inputScenario.probe.fixture_release}</span>}
+              {inputScenario.probe.sources.length > 0 && <span>Sources: {inputScenario.probe.sources.map((source, index) => <a key={source} href={source} target="_blank" rel="noreferrer">{index + 1}</a>)}</span>}
+            </section>
+          )}
           <label className="field">
             <span>Baseline {targetLabel}</span>
             <input value={baseline} onChange={(event) => setBaseline(event.target.value)} placeholder="https://baseline.example/rpc" inputMode="url" />
@@ -180,7 +187,10 @@ export default function LocalRunPage() {
         <section className="panel report-panel" aria-live="polite">
           <div className="panel-heading">
             <div><span className="eyebrow">Output</span><h2>Protocol diff report</h2></div>
-            {report && <span className={`status-label ${report.has_findings ? "finding" : ""}`}>{report.has_findings ? "Finding" : "Matched"}</span>}
+            <div className="report-actions">
+              {report && <button className="text-button" type="button" onClick={downloadReport}>Download JSON</button>}
+              {report && <span className={`status-label ${report.has_findings ? "finding" : ""}`}>{report.has_findings ? "Finding" : "Matched"}</span>}
+            </div>
           </div>
           {report?.probe && <p className="probe-report-context">{report.probe.upgrade} · {report.probe.eips.join(", ")} · {report.probe.category} · {report.probe.risk} risk{report.probe.fixture_release ? ` · ${report.probe.fixture_release}` : ""}</p>}
           {!report && <p className="empty-report">Run a scenario to view response differences.</p>}
@@ -256,4 +266,16 @@ function buildCliCommand(
 
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\\"'\\\"'")}'`;
+}
+
+function downloadFile(name: string, contents: string, type: string) {
+  const blob = new Blob([contents], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
