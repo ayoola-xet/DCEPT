@@ -24,6 +24,7 @@ export default function LocalRunPage() {
   const inputScenario = tryParseScenario(scenarioYaml);
   const needsEngineCli = inputScenario?.actions.some((action) => action.kind === "rpc" && action.method.startsWith("engine_")) ?? false;
   const targetLabel = needsEngineCli ? "Engine API endpoint" : inputScenario?.actions.some((action) => action.kind === "http") ? "Builder API base URL" : "Execution RPC endpoint";
+  const requiredInputsMissing = inputScenario ? Object.entries(inputScenario.inputs).some(([name, input]) => input.required && !(inputValues[name] ?? displayInputValue(input.default)).trim()) : false;
   const cliCommand = buildCliCommand(selectedProbe, inputScenario, inputValues, baseline, candidate, needsEngineCli);
 
   async function loadScenario(event: ChangeEvent<HTMLInputElement>) {
@@ -158,6 +159,7 @@ export default function LocalRunPage() {
               <p>Browser and Vercel modes do not accept Engine API credentials. This command keeps both JWT values on your device.</p>
               <pre>{cliCommand}</pre>
               <button className="secondary-button" type="button" onClick={copyCliCommand}>{copied ? "Copied" : "Copy CLI command"}</button>
+              {requiredInputsMissing && <p className="form-error">Complete the required inputs before you run this command.</p>}
               <p className="cli-note">For an official test case, use <code>glamprobe fixture run fixture.json --case test_name</code> with nodes prepared from the same fixture state.</p>
             </section>
           ) : (
@@ -169,7 +171,7 @@ export default function LocalRunPage() {
                 <label><input type="radio" name="mode" checked={mode === "vercel"} onChange={() => setMode("vercel")} /> Stateless Vercel route</label>
                 <p>Uses public HTTPS targets. It allows up to 20 actions. It blocks fuzzing, credential headers, write RPC methods, and write HTTP methods.</p>
               </fieldset>
-              <button className="run-button" type="button" onClick={run} disabled={busy || !baseline || !candidate}>
+              <button className="run-button" type="button" onClick={run} disabled={busy || !baseline || !candidate || requiredInputsMissing}>
                 {busy ? "Running…" : "Run differential test"}
               </button>
             </>
