@@ -165,8 +165,8 @@ need a JWT header on each target. See [probes/README.md](probes/README.md) for
 probe requirements and fixture use.
 
 Use `glamprobe fixture inspect` and `glamprobe fixture new-payload-v5-params`
-to export an official `blockchain_test_engine` fixture directive. Pass the JSON
-file to a probe with `--var-file NAME=PATH`.
+to export the `params` array from an official `blockchain_test_engine` fixture
+directive. Pass the JSON file to a probe with `--var-file NAME=PATH`.
 
 Use `glamprobe fixture run` to deliver every `engine_newPayloadV*` directive
 from one fixture case to both targets. The command checks the expected Engine

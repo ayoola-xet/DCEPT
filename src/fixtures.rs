@@ -144,6 +144,12 @@ fn engine_new_payload_params(directive: &Value) -> Result<Value, FixtureError> {
     if !(1..=5).contains(&version) {
         return Err(FixtureError::UnsupportedEngineVersion(version));
     }
+    if let Some(params) = field(directive, &["params"]) {
+        if !params.is_array() {
+            return Err(FixtureError::InvalidParams(params.clone()));
+        }
+        return Ok(params.clone());
+    }
     let payload = field(directive, &["executionPayload", "execution_payload"])
         .ok_or_else(|| FixtureError::MissingField("executionPayload".to_owned()))?
         .clone();
@@ -212,6 +218,8 @@ pub enum FixtureError {
     MissingField(String),
     #[error("fixture Engine API version is invalid: {0}")]
     InvalidVersion(Value),
+    #[error("fixture Engine API params must be an array: {0}")]
+    InvalidParams(Value),
     #[error("fixture case '{fixture_case}' has no Engine API payload at index {index}")]
     MissingPayload { fixture_case: String, index: usize },
     #[error("this command needs an engine_newPayloadV5 directive, but the fixture uses V{0}")]
@@ -228,10 +236,7 @@ mod tests {
       "mixed_results": {
         "engineNewPayloads": [{
           "version": 5,
-          "executionPayload": {"blockAccessList": "0xc0"},
-          "blobVersionedHashes": [],
-          "parentBeaconBlockRoot": "0x01",
-          "executionRequests": []
+          "params": [{"blockAccessList": "0xc0"}, [], "0x01", []]
         }, {
           "version": 4,
           "executionPayload": {"blockAccessList": "0xc0"},

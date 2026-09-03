@@ -35,7 +35,8 @@ devnet specification can change before mainnet.
 ## Use an official Engine API fixture
 
 Download and extract the needed `blockchain_test_engine` JSON fixture from the
-release pinned in `manifest.yaml`. Do not edit the fixture payload.
+release pinned in `manifest.yaml`. GlamProbe reads the fixture `params` array
+directly. Do not edit the fixture payload.
 
 ```sh
 glamprobe fixture inspect fixture.json

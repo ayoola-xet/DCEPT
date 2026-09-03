@@ -164,8 +164,8 @@ async function verifyFixtureReplay() {
   await writeFile(fixture, JSON.stringify({
     valid_and_invalid: {
       engineNewPayloads: [
-        { version: 5, executionPayload: { blockHash: "0x01" }, blobVersionedHashes: [], parentBeaconBlockRoot: "0x02", executionRequests: [] },
-        { version: 5, executionPayload: { blockHash: "0x03" }, blobVersionedHashes: [], parentBeaconBlockRoot: "0x04", executionRequests: [], errorCode: -32602 },
+        { version: 5, params: [{ blockHash: "0x01" }, [], "0x02", []] },
+        { version: 5, params: [{ blockHash: "0x03" }, [], "0x04", []], errorCode: -32602 },
       ],
     },
   }));
