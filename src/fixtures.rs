@@ -117,6 +117,7 @@ fn fixture_expectations(directive: &Value) -> TargetExpectations {
             equals: Some(error_code.clone()),
             contains_all: Vec::new(),
             has_keys: Vec::new(),
+            is_hex_quantity: false,
         }
     } else {
         let status = if field(directive, &["validationError", "validation_error"]).is_some() {
@@ -129,6 +130,7 @@ fn fixture_expectations(directive: &Value) -> TargetExpectations {
             equals: Some(json!(status)),
             contains_all: Vec::new(),
             has_keys: Vec::new(),
+            is_hex_quantity: false,
         }
     };
     TargetExpectations {

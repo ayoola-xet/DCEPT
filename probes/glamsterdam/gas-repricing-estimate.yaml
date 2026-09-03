@@ -42,6 +42,13 @@ actions:
         to: "{{recipient}}"
         value: "0x1"
       - "{{block}}"
+    expect:
+      baseline:
+        - path: /result
+          is_hex_quantity: true
+      candidate:
+        - path: /result
+          is_hex_quantity: true
   - kind: rpc
     id: access-list-transfer
     method: eth_estimateGas
@@ -53,3 +60,10 @@ actions:
           - address: "{{recipient}}"
             storageKeys: []
       - "{{block}}"
+    expect:
+      baseline:
+        - path: /result
+          is_hex_quantity: true
+      candidate:
+        - path: /result
+          is_hex_quantity: true

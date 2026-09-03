@@ -472,6 +472,8 @@ pub struct ResponseAssertion {
     pub contains_all: Vec<Value>,
     #[serde(default)]
     pub has_keys: Vec<String>,
+    #[serde(default)]
+    pub is_hex_quantity: bool,
 }
 
 impl TargetExpectations {
@@ -485,7 +487,8 @@ impl TargetExpectations {
             }
             let rule_count = usize::from(assertion.equals.is_some())
                 + usize::from(!assertion.contains_all.is_empty())
-                + usize::from(!assertion.has_keys.is_empty());
+                + usize::from(!assertion.has_keys.is_empty())
+                + usize::from(assertion.is_hex_quantity);
             if rule_count != 1 {
                 return Err(ScenarioError::InvalidAssertion {
                     action: action.to_owned(),
@@ -707,7 +710,7 @@ pub enum ScenarioError {
     #[error("assertion for action '{action}' has invalid JSON pointer path '{path}'")]
     InvalidAssertionPath { action: String, path: String },
     #[error(
-        "assertion for action '{action}' at '{path}' needs exactly one of equals, contains_all, or has_keys"
+        "assertion for action '{action}' at '{path}' needs exactly one of equals, contains_all, has_keys, or is_hex_quantity"
     )]
     InvalidAssertion { action: String, path: String },
     #[error("fuzz configuration is required")]

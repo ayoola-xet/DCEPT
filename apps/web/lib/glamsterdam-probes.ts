@@ -46,6 +46,13 @@ actions:
         to: "{{recipient}}"
         value: "0x1"
       - "{{block}}"
+    expect:
+      baseline:
+        - path: /result
+          is_hex_quantity: true
+      candidate:
+        - path: /result
+          is_hex_quantity: true
   - kind: rpc
     id: access-list-transfer
     method: eth_estimateGas
@@ -57,6 +64,13 @@ actions:
           - address: "{{recipient}}"
             storageKeys: []
       - "{{block}}"
+    expect:
+      baseline:
+        - path: /result
+          is_hex_quantity: true
+      candidate:
+        - path: /result
+          is_hex_quantity: true
 `,
   },
   {
@@ -172,6 +186,13 @@ actions:
     id: reject-malformed-block-access-list
     method: engine_newPayloadV5
     params: "{{new_payload_params}}"
+    expect:
+      baseline:
+        - path: /result/status
+          equals: INVALID
+      candidate:
+        - path: /result/status
+          equals: INVALID
 `,
   },
   {

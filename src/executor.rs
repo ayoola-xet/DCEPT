@@ -232,6 +232,25 @@ fn evaluate_assertions(
                 });
             }
         }
+        if assertion.is_hex_quantity {
+            let valid = actual
+                .as_ref()
+                .and_then(Value::as_str)
+                .is_some_and(|value| {
+                    value.starts_with("0x")
+                        && value.len() > 2
+                        && value[2..].bytes().all(|byte| byte.is_ascii_hexdigit())
+                });
+            if !valid {
+                failures.push(AssertionFailure {
+                    target: target.to_owned(),
+                    path: assertion.path.clone(),
+                    rule: "is_hex_quantity".to_owned(),
+                    expected: Value::Bool(true),
+                    actual: actual.clone(),
+                });
+            }
+        }
     }
     failures
 }
@@ -475,6 +494,7 @@ mod tests {
             equals: None,
             contains_all: vec![json!("engine_newPayloadV5")],
             has_keys: Vec::new(),
+            is_hex_quantity: false,
         }];
         let failures = evaluate_assertions("candidate", &operation, &assertions);
         assert_eq!(failures.len(), 1);
@@ -494,9 +514,29 @@ mod tests {
             equals: None,
             contains_all: Vec::new(),
             has_keys: vec!["blockAccessList".to_owned()],
+            is_hex_quantity: false,
         }];
         let failures = evaluate_assertions("baseline", &operation, &assertions);
         assert_eq!(failures.len(), 1);
         assert_eq!(failures[0].rule, "has_keys");
+    }
+
+    #[test]
+    fn reports_a_non_quantity_result() {
+        let operation = OperationResult {
+            response: Some(json!({"result": "not-a-quantity"})),
+            error: None,
+            duration_ms: 1,
+        };
+        let assertions = vec![ResponseAssertion {
+            path: "/result".to_owned(),
+            equals: None,
+            contains_all: Vec::new(),
+            has_keys: Vec::new(),
+            is_hex_quantity: true,
+        }];
+        let failures = evaluate_assertions("candidate", &operation, &assertions);
+        assert_eq!(failures.len(), 1);
+        assert_eq!(failures[0].rule, "is_hex_quantity");
     }
 }

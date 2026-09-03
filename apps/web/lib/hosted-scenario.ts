@@ -7,8 +7,8 @@ const comparison = z.object({
 }).default({ ignore_paths: [], numeric_tolerances: [] });
 const assertion = z.object({
   path: z.string().refine((value) => value === "" || value.startsWith("/"), "Assertion path must be a JSON pointer."),
-  equals: z.unknown().optional(), contains_all: z.array(z.unknown()).default([]), has_keys: z.array(z.string().min(1)).default([]),
-}).refine((value) => Number(value.equals !== undefined) + Number(value.contains_all.length > 0) + Number(value.has_keys.length > 0) === 1, "An assertion needs exactly one of equals, contains_all, or has_keys.");
+  equals: z.unknown().optional(), contains_all: z.array(z.unknown()).default([]), has_keys: z.array(z.string().min(1)).default([]), is_hex_quantity: z.boolean().default(false),
+}).refine((value) => Number(value.equals !== undefined) + Number(value.contains_all.length > 0) + Number(value.has_keys.length > 0) + Number(value.is_hex_quantity) === 1, "An assertion needs exactly one of equals, contains_all, has_keys, or is_hex_quantity.");
 const expectations = z.object({ baseline: z.array(assertion).default([]), candidate: z.array(assertion).default([]) }).default({ baseline: [], candidate: [] });
 
 const rpcAction = z.object({

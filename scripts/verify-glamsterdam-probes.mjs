@@ -108,10 +108,10 @@ async function verifyPayloadBid(status, expectedExit, expectedAssertions) {
   }
 }
 
-async function verifyGasProbe(blockResult, expectedExit, expectedAssertions) {
+async function verifyGasProbe(blockResult, estimateResult, expectedExit, expectedAssertions) {
   const reply = (payload) => {
     if (payload.method === "eth_getBlockByNumber") return { result: blockResult };
-    if (payload.method === "eth_estimateGas") return { result: "0x5208" };
+    if (payload.method === "eth_estimateGas") return { result: estimateResult };
     return { error: { code: -32601, message: "method not found" } };
   };
   const baseline = await rpcServer(reply);
@@ -121,9 +121,26 @@ async function verifyGasProbe(blockResult, expectedExit, expectedAssertions) {
     const result = await run(binary, ["probe", "run", "glamsterdam/gas-repricing-estimate", "--baseline", `http://127.0.0.1:${baseline.address().port}`, "--candidate", `http://127.0.0.1:${candidate.address().port}`, "--var", "sender=0x0000000000000000000000000000000000000001", "--var", "recipient=0x0000000000000000000000000000000000000002", "--var", "block=0x1234"]);
     if (result.code !== expectedExit) throw new Error(`Expected gas probe exit code ${expectedExit}. Got ${result.code}. ${result.stderr}`);
     const report = JSON.parse(result.stdout);
-    const failures = report.actions?.[0]?.assertion_failures ?? [];
+    const failures = report.actions.flatMap((action) => action.assertion_failures ?? []);
     if (failures.length !== expectedAssertions) throw new Error(`Expected ${expectedAssertions} gas probe assertion failures. Got ${failures.length}.`);
-    if (expectedAssertions > 0 && report.actions?.[0]?.diffs?.length !== 0) throw new Error("The gas probe preflight must fail through assertions, not target differences.");
+    if (expectedAssertions > 0 && report.actions.some((action) => action.diffs?.length !== 0)) throw new Error("The gas probe must fail through assertions, not target differences.");
+  } finally {
+    baseline.close();
+    candidate.close();
+  }
+}
+
+async function verifyMalformedBlockAccessList(status, expectedExit, expectedAssertions) {
+  const baseline = await rpcServer({ status });
+  const candidate = await rpcServer({ status });
+  try {
+    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "glamprobe.exe" : "glamprobe");
+    const result = await run(binary, ["probe", "run", "glamsterdam/malformed-block-access-list", "--baseline", `http://127.0.0.1:${baseline.address().port}`, "--candidate", `http://127.0.0.1:${candidate.address().port}`, "--var", "new_payload_params=[{}]"]);
+    if (result.code !== expectedExit) throw new Error(`Expected malformed payload exit code ${expectedExit}. Got ${result.code}. ${result.stderr}`);
+    const report = JSON.parse(result.stdout);
+    const failures = report.actions?.[0]?.assertion_failures ?? [];
+    if (failures.length !== expectedAssertions) throw new Error(`Expected ${expectedAssertions} malformed payload assertion failures. Got ${failures.length}.`);
+    if (expectedAssertions > 0 && report.actions?.[0]?.diffs?.length !== 0) throw new Error("The malformed payload probe must fail through assertions, not target differences.");
   } finally {
     baseline.close();
     candidate.close();
@@ -174,7 +191,10 @@ await verifyBuilderStatus(200, 0, 0);
 await verifyBuilderStatus(503, 2, 2);
 await verifyPayloadBid(200, 0, 0);
 await verifyPayloadBid(404, 2, 2);
-await verifyGasProbe({ hash: "0x01", number: "0x1234" }, 0, 0);
-await verifyGasProbe({}, 2, 4);
+await verifyGasProbe({ hash: "0x01", number: "0x1234" }, "0x5208", 0, 0);
+await verifyGasProbe({}, "0x5208", 2, 4);
+await verifyGasProbe({ hash: "0x01", number: "0x1234" }, "not-a-quantity", 2, 4);
+await verifyMalformedBlockAccessList("INVALID", 0, 0);
+await verifyMalformedBlockAccessList("VALID", 2, 2);
 await verifyFixtureReplay();
 console.log("Glamsterdam probe invariant passed.");

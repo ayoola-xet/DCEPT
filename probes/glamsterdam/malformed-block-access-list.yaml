@@ -20,3 +20,10 @@ actions:
     id: reject-malformed-block-access-list
     method: engine_newPayloadV5
     params: "{{new_payload_params}}"
+    expect:
+      baseline:
+        - path: /result/status
+          equals: INVALID
+      candidate:
+        - path: /result/status
+          equals: INVALID

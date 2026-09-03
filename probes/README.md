@@ -25,10 +25,12 @@ Gloas Builder API probes use Builder API target URLs, not execution RPC URLs.
 The payload-bid probe needs a current slot, execution parent hash, beacon parent
 root, and proposer public key from the same proposal context.
 
-Use an official Glamsterdam fixture for `new_payload_params`. Get the fixture
-from the selected `ethereum/execution-specs` Glamsterdam test release. Pin the
-fixture release in your test record. The devnet specification can change before
-mainnet.
+Use an official Glamsterdam fixture for `new_payload_params`. Select a case
+that expects an `INVALID` payload status for the malformed block access-list
+probe. Use `glamprobe fixture run` for a fixture case that expects a JSON-RPC
+error code. Get the fixture from the selected `ethereum/execution-specs`
+Glamsterdam test release. Pin the fixture release in your test record. The
+devnet specification can change before mainnet.
 
 ## Use an official Engine API fixture
 

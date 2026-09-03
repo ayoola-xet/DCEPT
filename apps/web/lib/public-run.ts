@@ -3,7 +3,7 @@ import type { HostedAction, HostedScenario } from "./hosted-scenario";
 
 export type PublicTarget = { endpoint: string };
 export type PublicOperation = { response: unknown | null; error: string | null; duration_ms: number };
-export type PublicAssertionFailure = { target: "baseline" | "candidate"; path: string; rule: "equals" | "contains_all" | "has_keys"; expected: unknown; actual: unknown | null };
+export type PublicAssertionFailure = { target: "baseline" | "candidate"; path: string; rule: "equals" | "contains_all" | "has_keys" | "is_hex_quantity"; expected: unknown; actual: unknown | null };
 export type PublicActionReport = { id: string; baseline: PublicOperation; candidate: PublicOperation; diffs: unknown[]; assertion_failures: PublicAssertionFailure[] };
 export type PublicRunReport = { schema_version: 1; scenario_name: string; probe?: HostedScenario["probe"]; actions: PublicActionReport[]; has_findings: boolean };
 export type Comparator = (baseline: unknown, candidate: unknown, comparison: HostedAction["comparison"]) => unknown[];
@@ -101,6 +101,9 @@ function evaluateAssertions(
     for (const expected of assertion.has_keys) {
       const contains = typeof actual === "object" && actual !== null && !Array.isArray(actual) && expected in actual;
       if (!contains) failures.push({ target, path: assertion.path, rule: "has_keys", expected, actual });
+    }
+    if (assertion.is_hex_quantity && !(typeof actual === "string" && /^0x[0-9a-fA-F]+$/.test(actual))) {
+      failures.push({ target, path: assertion.path, rule: "is_hex_quantity", expected: true, actual });
     }
   }
   return failures;
