@@ -37,6 +37,7 @@ jobs:
       - run: npm run verify:probes
       - run: npm run typecheck
       - run: npm run build
+      - run: npm run verify:wasm-trace
   adapters:
     runs-on: ubuntu-latest
     defaults:
