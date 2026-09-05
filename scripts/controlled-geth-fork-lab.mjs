@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -26,6 +26,7 @@ let stopping = false;
 
 try {
   await requireDocker();
+  await Promise.all([mkdir(baselineData), mkdir(candidateData)]);
   await writeFile(baselineGenesis, JSON.stringify(genesis(253_402_300_799), null, 2));
   await writeFile(candidateGenesis, JSON.stringify(genesis(0), null, 2));
   await initialize(baselineData, baselineGenesis);
@@ -162,6 +163,7 @@ async function requireDocker() {
 async function initialize(dataDirectory, genesisPath) {
   await execute("docker", [
     "run", "--rm",
+    ...dockerUserArguments(),
     "--entrypoint", "geth",
     "-v", `${dataDirectory}:/data`,
     "-v", `${genesisPath}:/config/genesis.json:ro`,
@@ -173,6 +175,7 @@ async function initialize(dataDirectory, genesisPath) {
 function startGeth(name, dataDirectory, port) {
   const child = spawn("docker", [
     "run", "--rm",
+    ...dockerUserArguments(),
     "--name", name,
     "-p", `${port}:8545`,
     "-v", `${dataDirectory}:/data`,
@@ -200,6 +203,11 @@ function startGeth(name, dataDirectory, port) {
     }
   });
   return child;
+}
+
+function dockerUserArguments() {
+  if (typeof process.getuid !== "function" || typeof process.getgid !== "function") return [];
+  return ["--user", `${process.getuid()}:${process.getgid()}`];
 }
 
 async function waitForRpc(endpoint) {
