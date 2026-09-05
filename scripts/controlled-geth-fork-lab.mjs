@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -26,6 +26,7 @@ let stopping = false;
 
 try {
   await requireDocker();
+  await Promise.all([mkdir(baselineData), mkdir(candidateData)]);
   await writeFile(baselineGenesis, JSON.stringify(genesis(253_402_300_799), null, 2));
   await writeFile(candidateGenesis, JSON.stringify(genesis(0), null, 2));
   await initialize(baselineData, baselineGenesis);
