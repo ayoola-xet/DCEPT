@@ -1,0 +1,58 @@
+version: 1
+name: createx-presigned-deployment-compatibility
+description: >-
+  Compare the current CreateX deployment transaction on Ethereum Mainnet and
+  Platåberget. This control checks whether a fixed gas cap and the canonical
+  CreateX address remain usable. It is not a controlled protocol differential.
+probe:
+  upgrade: glamsterdam
+  eips: ["EIP-8037"]
+  category: deployment_tooling
+  risk: high
+  sources:
+    - https://eips.ethereum.org/EIPS/eip-8037
+    - https://github.com/pcaversaccio/createx
+inputs:
+  createx_init_code:
+    description: The current CreateX contract creation bytecode from the official repository.
+    kind: string
+    required: true
+actions:
+  - kind: rpc
+    id: createx-canonical-address-code
+    method: eth_getCode
+    params:
+      - "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+      - latest
+    expect:
+      baseline:
+        - path: /result
+          contains_all: ["0x6080604052"]
+      candidate:
+        - path: /result
+          equals: "0x"
+  - kind: rpc
+    id: createx-default-presigned-gas-cap
+    method: eth_estimateGas
+    params:
+      - from: "0xed456e05caab11d66c4c797dd6c1d6f9a7f352b5"
+        data: "{{createx_init_code}}"
+        gas: "0x2dc6c0"
+    expect:
+      baseline:
+        - path: /result
+          is_hex_quantity: true
+  - kind: rpc
+    id: createx-deployment-gas-required
+    method: eth_estimateGas
+    params:
+      - from: "0xed456e05caab11d66c4c797dd6c1d6f9a7f352b5"
+        data: "{{createx_init_code}}"
+        gas: "0x2aea540"
+    expect:
+      baseline:
+        - path: /result
+          is_hex_quantity: true
+      candidate:
+        - path: /result
+          is_hex_quantity: true

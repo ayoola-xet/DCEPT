@@ -30,7 +30,7 @@ function run(command, args) {
 
 const baseline = await rpcServer("0x1");
 const candidate = await rpcServer("0x2");
-const directory = await mkdtemp(join(tmpdir(), "glamprobe-local-"));
+const directory = await mkdtemp(join(tmpdir(), "dcept-local-"));
 const scenario = join(directory, "scenario.yaml");
 const report = join(directory, "report.json");
 
@@ -40,7 +40,7 @@ try {
   const candidateUrl = `http://127.0.0.1:${candidate.address().port}`;
   const build = await run("cargo", ["build", "--quiet"]);
   if (build.code !== 0) throw new Error(`Standalone build failed. ${build.stderr}`);
-  const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "glamprobe.exe" : "glamprobe");
+  const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "dcept.exe" : "dcept");
   const result = await run(binary, ["run", scenario, "--baseline", baselineUrl, "--candidate", candidateUrl, "--output", report]);
   if (result.code !== 2) throw new Error(`Expected differential exit code 2. Got ${result.code}. ${result.stderr}`);
   const parsed = JSON.parse(await readFile(report, "utf8"));

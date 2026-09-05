@@ -7,10 +7,13 @@ Deploy `apps/web` as the Vercel project root.
 The local-run page and `/api/public/run` work with no environment values. They
 do not use a database, login, or Cloud storage. The public route accepts public
 HTTPS endpoints only. It limits runs to 20 actions. It blocks fuzzing,
-credential headers, write RPC methods, and write HTTP methods.
+credential headers, write RPC methods, and write HTTP methods. It limits each
+target response to 2 MB.
 
 The route is public. Configure Vercel Firewall rate limiting before you expose
-it to uncontrolled traffic.
+it to uncontrolled traffic. Apply network egress controls that block private,
+loopback, link-local, metadata-service, and reserved addresses. Application
+checks do not replace network controls.
 
 ## Required services
 
@@ -50,3 +53,4 @@ Use a different `ENCRYPTION_KEY` and `SESSION_SECRET` for preview and production
 - Change organization quotas before you accept large fuzzing runs.
 - Revoke an API token when its holder no longer needs access.
 - Use test endpoints for scenarios that submit transactions.
+- Apply a 16 MB response limit to each Cloud target response.

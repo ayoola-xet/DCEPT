@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { defaultGlamsterdamProbe } from "@/lib/glamsterdam-probes";
+import type { ComparisonMode } from "@/lib/core-types";
 
 type Target = { id: string; name: string; created_at: string };
 type ScenarioInput = { description: string; kind: "string" | "address" | "quantity" | "block_tag" | "json"; required: boolean; default?: unknown };
 type Scenario = { id: string; name: string; checksum: string; updated_at: string; inputs: Record<string, ScenarioInput> };
 type ScenarioDetail = { id: string; name: string; yaml_source: string };
-type Run = { id: string; status: string; scenario_name: string; created_at: string; action_count: number };
+type Run = { id: string; status: string; scenario_name: string; comparison_mode: ComparisonMode; created_at: string; action_count: number };
 type RunDetail = { id: string; status: string; created_at: string; completed_at: string | null; error_message: string | null; report_json: unknown | null };
 type CloudData = { targets: Target[]; scenarios: Scenario[]; runs: Run[] };
 
@@ -26,9 +27,32 @@ export function CloudConsole() {
   const [runScenario, setRunScenario] = useState("");
   const [baselineTarget, setBaselineTarget] = useState("");
   const [candidateTarget, setCandidateTarget] = useState("");
+  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>("upgrade_differential");
+  const [baselineProtocol, setBaselineProtocol] = useState("osaka");
+  const [candidateProtocol, setCandidateProtocol] = useState("glamsterdam");
+  const [baselineClient, setBaselineClient] = useState("");
+  const [candidateClient, setCandidateClient] = useState("");
+  const [baselineStateFingerprint, setBaselineStateFingerprint] = useState("");
+  const [candidateStateFingerprint, setCandidateStateFingerprint] = useState("");
+  const [controlReason, setControlReason] = useState("");
+  const [historicalForkBoundary, setHistoricalForkBoundary] = useState(false);
+  const [allowModeOverride, setAllowModeOverride] = useState(false);
+  const [modeOverrideReason, setModeOverrideReason] = useState("");
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const [selectedRun, setSelectedRun] = useState<RunDetail | null>(null);
   const selectedScenario = data.scenarios.find((scenario) => scenario.id === runScenario);
+
+  function selectComparisonMode(mode: ComparisonMode) {
+    setComparisonMode(mode);
+    if (mode === "upgrade_differential") {
+      setBaselineProtocol("osaka");
+      setCandidateProtocol("glamsterdam");
+    }
+    if (mode === "client_differential") {
+      setBaselineProtocol("glamsterdam");
+      setCandidateProtocol("glamsterdam");
+    }
+  }
 
   const load = useCallback(async () => {
     setState("loading");
@@ -110,6 +134,17 @@ export function CloudConsole() {
           baselineTargetId: baselineTarget,
           candidateTargetId: candidateTarget,
           inputValues: parseInputValues(selectedScenario, inputValues),
+          comparisonMode,
+          baselineProtocol,
+          candidateProtocol,
+          baselineClient,
+          candidateClient,
+          baselineStateFingerprint,
+          candidateStateFingerprint,
+          controlReason,
+          historicalForkBoundary,
+          allowModeOverride,
+          modeOverrideReason,
         }),
       });
       if (!response.ok) throw new Error(await responseMessage(response));
@@ -194,9 +229,9 @@ export function CloudConsole() {
     }
   }
 
-  if (state === "loading") return <section className="panel cloud-console"><p className="empty-report">Loading Cloud workspace.</p></section>;
-  if (state === "signed-out") return <section className="panel cloud-console"><h2>Connect a wallet for Cloud history</h2><p className="empty-report">Use the Cloud sign-in control. Local mode does not need a wallet.</p></section>;
-  if (state === "error") return <section className="panel cloud-console"><h2>Cloud is not ready</h2><p className="form-error">{message}</p></section>;
+  if (state === "loading") return <section className="panel cloud-empty"><span className="runtime-dot" /><h2>Loading Cloud workspace</h2><p>Checking the current Cloud session.</p></section>;
+  if (state === "signed-out") return <section className="panel cloud-empty"><img src="/brand/dcept-mark.svg" alt="" width="34" height="34" /><h2>Connect a wallet for Cloud history</h2><p>Use the sign-in control above. The local workspace does not need a wallet.</p></section>;
+  if (state === "error") return <section className="panel cloud-empty"><h2>Cloud is not ready</h2><p className="form-error">{message}</p></section>;
 
   return (
     <section className="cloud-console">
@@ -224,16 +259,39 @@ export function CloudConsole() {
 
       <form className="panel cloud-run-form" onSubmit={startRun}>
         <div><span className="eyebrow">3. Durable run</span><h2>Queue a Cloud probe</h2></div>
+        <label className="field mode-select-mobile">
+          <span>Comparison mode</span>
+          <select
+            value={comparisonMode}
+            onInput={(event) => selectComparisonMode(event.currentTarget.value as ComparisonMode)}
+            onChange={(event) => selectComparisonMode(event.currentTarget.value as ComparisonMode)}
+          >
+            <option value="upgrade_differential">Upgrade — pre-rules vs post-rules</option>
+            <option value="client_differential">Client — implementation consistency</option>
+            <option value="control">Control — DCEPT self-test</option>
+          </select>
+        </label>
+        <fieldset className="mode-selector" role="radiogroup">
+          <legend className="sr-only">Comparison mode</legend>
+          <button type="button" role="radio" aria-checked={comparisonMode === "upgrade_differential"} className={comparisonMode === "upgrade_differential" ? "selected" : ""} onClick={() => selectComparisonMode("upgrade_differential")} onTouchEnd={() => selectComparisonMode("upgrade_differential")}><strong>Upgrade</strong><small>Pre-rules vs post-rules</small></button>
+          <button type="button" role="radio" aria-checked={comparisonMode === "client_differential"} className={comparisonMode === "client_differential" ? "selected" : ""} onClick={() => selectComparisonMode("client_differential")} onTouchEnd={() => selectComparisonMode("client_differential")}><strong>Client</strong><small>Implementation consistency</small></button>
+          <button type="button" role="radio" aria-checked={comparisonMode === "control"} className={comparisonMode === "control" ? "selected" : ""} onClick={() => selectComparisonMode("control")} onTouchEnd={() => selectComparisonMode("control")}><strong>Control</strong><small>DCEPT self-test</small></button>
+        </fieldset>
         <label className="field"><span>Scenario</span><select value={runScenario} onChange={(event) => setRunScenario(event.target.value)} required><option value="">Select scenario</option>{data.scenarios.map((scenario) => <option value={scenario.id} key={scenario.id}>{scenario.name}</option>)}</select></label>
         <label className="field"><span>Baseline target</span><select value={baselineTarget} onChange={(event) => setBaselineTarget(event.target.value)} required><option value="">Select target</option>{data.targets.map((target) => <option value={target.id} key={target.id}>{target.name}</option>)}</select></label>
         <label className="field"><span>Candidate target</span><select value={candidateTarget} onChange={(event) => setCandidateTarget(event.target.value)} required><option value="">Select target</option>{data.targets.map((target) => <option value={target.id} key={target.id}>{target.name}</option>)}</select></label>
+        {comparisonMode !== "control" && <div className="cloud-inputs"><strong>Protocol and state identity</strong><label className="field"><span>Baseline protocol</span><input value={baselineProtocol} onChange={(event) => setBaselineProtocol(event.target.value)} /></label><label className="field"><span>Candidate protocol</span><input value={candidateProtocol} onChange={(event) => setCandidateProtocol(event.target.value)} /></label><label className="field"><span>Baseline state fingerprint</span><input value={baselineStateFingerprint} onChange={(event) => setBaselineStateFingerprint(event.target.value)} /></label><label className="field"><span>Candidate state fingerprint</span><input value={candidateStateFingerprint} onChange={(event) => setCandidateStateFingerprint(event.target.value)} /></label></div>}
+        {comparisonMode === "client_differential" && <div className="cloud-inputs"><strong>Client identity</strong><label className="field"><span>Baseline client</span><input value={baselineClient} onChange={(event) => setBaselineClient(event.target.value)} /></label><label className="field"><span>Candidate client</span><input value={candidateClient} onChange={(event) => setCandidateClient(event.target.value)} /></label></div>}
+        {comparisonMode === "control" && <label className="field"><span>Control reason</span><input value={controlReason} onChange={(event) => setControlReason(event.target.value)} required /></label>}
+        {comparisonMode === "upgrade_differential" && <label className="check-field"><input type="checkbox" checked={historicalForkBoundary} onChange={(event) => setHistoricalForkBoundary(event.target.checked)} /> Explicit historical fork-boundary probe</label>}
+        {comparisonMode !== "control" && <div><label className="check-field"><input type="checkbox" checked={allowModeOverride} onChange={(event) => setAllowModeOverride(event.target.checked)} /> Override mode identity protection</label>{allowModeOverride && <label className="field"><span>Override reason</span><input value={modeOverrideReason} onChange={(event) => setModeOverrideReason(event.target.value)} required /></label>}</div>}
         {selectedScenario && Object.keys(selectedScenario.inputs).length > 0 && <div className="cloud-inputs"><strong>Scenario inputs</strong>{Object.entries(selectedScenario.inputs).map(([name, input]) => <label className="field" key={name}><span>{name}{input.required ? " *" : ""}</span>{input.kind === "json" ? <textarea value={inputValues[name] ?? ""} onChange={(event) => setInputValues((values) => ({ ...values, [name]: event.target.value }))} placeholder={input.description} required={input.required} spellCheck="false" /> : <input value={inputValues[name] ?? ""} onChange={(event) => setInputValues((values) => ({ ...values, [name]: event.target.value }))} placeholder={input.description} required={input.required} />}</label>)}</div>}
-        <button className="run-button" type="submit" disabled={!runScenario || !baselineTarget || !candidateTarget || baselineTarget === candidateTarget || hasMissingRequiredInput(selectedScenario, inputValues)}>Queue Cloud run</button>
+        <button className="run-button" type="submit" disabled={!runScenario || !baselineTarget || !candidateTarget || hasMissingRequiredInput(selectedScenario, inputValues) || (comparisonMode === "control" && !controlReason.trim()) || (allowModeOverride && !modeOverrideReason.trim())}>Queue Cloud run</button>
       </form>
 
       <section className="panel cloud-runs">
         <div><span className="eyebrow">Recent Cloud runs</span><h2>Run history</h2></div>
-        {data.runs.length === 0 ? <p className="empty-report">No Cloud runs yet.</p> : <div className="run-list">{data.runs.map((run) => <article className="run-row" key={run.id}><span className={`status-dot ${run.status === "completed" ? "passed" : "finding"}`} /><div><strong>{run.scenario_name}</strong><span>{run.action_count} actions</span></div><span className="status-label">{run.status}</span><div className="cloud-run-actions"><button className="text-button" type="button" onClick={() => void openRun(run.id)}>View</button>{["queued", "running"].includes(run.status) && <button className="text-button warning-button" type="button" onClick={() => void cancelRun(run.id)}>Cancel</button>}</div></article>)}</div>}
+        {data.runs.length === 0 ? <p className="empty-report">No Cloud runs yet.</p> : <div className="run-list">{data.runs.map((run) => <article className="run-row" key={run.id}><span className={`status-dot ${run.status === "completed" ? "passed" : "finding"}`} /><div><strong>{run.scenario_name}</strong><span>{run.comparison_mode} · {run.action_count} actions</span></div><span className="status-label">{run.status}</span><div className="cloud-run-actions"><button className="text-button" type="button" onClick={() => void openRun(run.id)}>View</button>{["queued", "running"].includes(run.status) && <button className="text-button warning-button" type="button" onClick={() => void cancelRun(run.id)}>Cancel</button>}</div></article>)}</div>}
       </section>
       {selectedRun && <section className="panel cloud-run-detail"><div><span className="eyebrow">Run detail</span><h2>{selectedRun.status}</h2></div>{selectedRun.error_message && <p className="form-error">{selectedRun.error_message}</p>}{selectedRun.report_json ? <pre>{JSON.stringify(selectedRun.report_json, null, 2)}</pre> : <p className="empty-report">The run has no report yet.</p>}</section>}
     </section>
@@ -251,7 +309,7 @@ async function responseMessage(response: Response): Promise<string> {
 
 function initialInputValues(scenario: Scenario | undefined): Record<string, string> {
   if (!scenario) return {};
-  return Object.fromEntries(Object.entries(scenario.inputs).flatMap(([name, input]) => input.default === undefined ? [] : [[name, input.kind === "json" ? JSON.stringify(input.default) : String(input.default)]]));
+  return Object.fromEntries(Object.entries(scenario.inputs).flatMap(([name, input]) => input.default == null ? [] : [[name, input.kind === "json" ? JSON.stringify(input.default) : String(input.default)]]));
 }
 
 function parseInputValues(scenario: Scenario | undefined, values: Record<string, string>): Record<string, unknown> {

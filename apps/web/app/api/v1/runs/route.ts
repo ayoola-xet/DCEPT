@@ -5,14 +5,26 @@ import { z } from "zod";
 import { badRequest, hasScope, isResponse, requireSession } from "@/lib/api";
 import { requireAccess } from "@/lib/authorization";
 import { database, newId } from "@/lib/db";
-import { resolveScenarioWithCore } from "@/lib/rust-core";
+import { parseScenarioWithCore, planFuzzWithCore, planScenarioWithCore } from "@/lib/rust-core";
 import { runScenarioWorkflow } from "@/workflows/run-scenario";
+import type { RunConfiguration } from "@/lib/core-types";
 
 const runSchema = z.object({
   scenarioId: z.string().uuid(),
   baselineTargetId: z.string().uuid(),
   candidateTargetId: z.string().uuid(),
   inputValues: z.record(z.string(), z.unknown()).default({}),
+  comparisonMode: z.enum(["upgrade_differential", "client_differential", "control"]),
+  baselineProtocol: z.string().optional(),
+  candidateProtocol: z.string().optional(),
+  baselineClient: z.string().optional(),
+  candidateClient: z.string().optional(),
+  baselineStateFingerprint: z.string().optional(),
+  candidateStateFingerprint: z.string().optional(),
+  controlReason: z.string().optional(),
+  historicalForkBoundary: z.boolean().default(false),
+  allowModeOverride: z.boolean().default(false),
+  modeOverrideReason: z.string().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -21,6 +33,7 @@ export async function GET(request: NextRequest) {
   if (!hasScope(session, "runs:read")) return NextResponse.json({ error: "API token does not have the required scope." }, { status: 403 });
   const runs = await database()`
     SELECT r.id, r.status, r.created_at, r.completed_at, r.error_message, s.name AS scenario_name,
+      r.run_configuration->>'comparison_mode' AS comparison_mode,
       COALESCE(jsonb_array_length(r.report_json->'actions'), 0) AS action_count
     FROM runs r JOIN scenarios s ON s.id = r.scenario_id
     WHERE r.organization_id = ${session.organizationId}
@@ -36,18 +49,39 @@ export async function POST(request: NextRequest) {
   if (denied) return denied;
   const parsed = runSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return badRequest("Scenario, baseline target, and candidate target IDs are required.");
-  if (parsed.data.baselineTargetId === parsed.data.candidateTargetId) return badRequest("Baseline and candidate targets must be different.");
-
   const sql = database();
   const scenarios = await sql`SELECT yaml_source FROM scenarios WHERE id = ${parsed.data.scenarioId} AND organization_id = ${session.organizationId} LIMIT 1`;
   const targets = await sql`
     SELECT id, endpoint_ciphertext, headers_ciphertext FROM targets
     WHERE organization_id = ${session.organizationId} AND id = ANY(${[parsed.data.baselineTargetId, parsed.data.candidateTargetId]})
   `;
-  if (!scenarios[0] || targets.length !== 2) return NextResponse.json({ error: "Scenario or target does not exist in this organization." }, { status: 404 });
+  const expectedTargetCount = parsed.data.baselineTargetId === parsed.data.candidateTargetId ? 1 : 2;
+  if (!scenarios[0] || targets.length !== expectedTargetCount) return NextResponse.json({ error: "Scenario or target does not exist in this organization." }, { status: 404 });
+  const optional = (value: string | undefined) => value?.trim() || null;
+  const configuration: RunConfiguration = {
+    comparison_mode: parsed.data.comparisonMode,
+    baseline_protocol: optional(parsed.data.baselineProtocol),
+    candidate_protocol: optional(parsed.data.candidateProtocol),
+    baseline_client: optional(parsed.data.baselineClient),
+    candidate_client: optional(parsed.data.candidateClient),
+    baseline_state_fingerprint: optional(parsed.data.baselineStateFingerprint),
+    candidate_state_fingerprint: optional(parsed.data.candidateStateFingerprint),
+    control_reason: optional(parsed.data.controlReason),
+    same_target: parsed.data.baselineTargetId === parsed.data.candidateTargetId,
+    allow_mode_override: parsed.data.allowModeOverride,
+    mode_override_reason: optional(parsed.data.modeOverrideReason),
+    historical_fork_boundary: parsed.data.historicalForkBoundary,
+  };
   let caseCount: number;
   try {
-    caseCount = (await resolveScenarioWithCore(scenarios[0].yaml_source as string, parsed.data.inputValues)).fuzz?.cases ?? 1;
+    const source = scenarios[0].yaml_source as string;
+    const scenario = await parseScenarioWithCore(source);
+    if (scenario.fuzz) {
+      caseCount = (await planFuzzWithCore(source, parsed.data.inputValues, configuration)).cases.length;
+    } else {
+      await planScenarioWithCore(source, parsed.data.inputValues, configuration);
+      caseCount = 1;
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Stored scenario YAML is invalid.";
     return NextResponse.json({ error: `Scenario inputs are invalid: ${message}` }, { status: 400 });
@@ -75,8 +109,8 @@ export async function POST(request: NextRequest) {
   const candidate = targets.find((target) => target.id === parsed.data.candidateTargetId);
   if (!baseline || !candidate) return NextResponse.json({ error: "Scenario or target does not exist in this organization." }, { status: 404 });
   await sql`
-    INSERT INTO runs (id, organization_id, scenario_id, baseline_target_id, candidate_target_id, baseline_endpoint_ciphertext, baseline_headers_ciphertext, candidate_endpoint_ciphertext, candidate_headers_ciphertext, scenario_yaml_source, input_values, case_count, status)
-    VALUES (${id}, ${session.organizationId}, ${parsed.data.scenarioId}, ${parsed.data.baselineTargetId}, ${parsed.data.candidateTargetId}, ${baseline.endpoint_ciphertext as string}, ${baseline.headers_ciphertext as string}, ${candidate.endpoint_ciphertext as string}, ${candidate.headers_ciphertext as string}, ${scenarios[0].yaml_source as string}, ${JSON.stringify(parsed.data.inputValues)}::jsonb, ${caseCount}, 'queued')
+    INSERT INTO runs (id, organization_id, scenario_id, baseline_target_id, candidate_target_id, baseline_endpoint_ciphertext, baseline_headers_ciphertext, candidate_endpoint_ciphertext, candidate_headers_ciphertext, scenario_yaml_source, input_values, run_configuration, case_count, status)
+    VALUES (${id}, ${session.organizationId}, ${parsed.data.scenarioId}, ${parsed.data.baselineTargetId}, ${parsed.data.candidateTargetId}, ${baseline.endpoint_ciphertext as string}, ${baseline.headers_ciphertext as string}, ${candidate.endpoint_ciphertext as string}, ${candidate.headers_ciphertext as string}, ${scenarios[0].yaml_source as string}, ${JSON.stringify(parsed.data.inputValues)}::jsonb, ${JSON.stringify(configuration)}::jsonb, ${caseCount}, 'queued')
   `;
   await start(runScenarioWorkflow, [id]);
   return NextResponse.json({ run: { id, status: "queued" } }, { status: 202 });

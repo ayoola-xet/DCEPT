@@ -1,0 +1,31 @@
+version: 1
+name: glamsterdam-fork-boundary-control
+description: Controlled self-test proving that DCEPT detects a known EIP-7928 boundary difference.
+probe:
+  upgrade: glamsterdam
+  eips: ["EIP-7928"]
+  category: block_access_list
+  risk: critical
+  sources:
+    - https://eips.ethereum.org/EIPS/eip-7928
+actions:
+  - kind: rpc
+    id: pre-fork-versus-post-fork-bal
+    method: eth_getBlockAccessList
+    baseline_params:
+      - "0x1"
+    candidate_params:
+      - "0x233f6"
+    expect:
+      baseline:
+        - path: /error/code
+          equals: -32600
+      candidate:
+        - path: /result/0
+          has_keys:
+            - address
+            - storageChanges
+            - storageReads
+            - balanceChanges
+            - nonceChanges
+            - codeChanges

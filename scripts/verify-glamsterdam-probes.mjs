@@ -52,7 +52,7 @@ async function verify(capabilities, expectedExit, expectedAssertions) {
   const baseline = await rpcServer(capabilities);
   const candidate = await rpcServer(capabilities);
   try {
-    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "glamprobe.exe" : "glamprobe");
+    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "dcept.exe" : "dcept");
     const result = await run(binary, ["probe", "run", "glamsterdam/engine-api-surface", "--baseline", `http://127.0.0.1:${baseline.address().port}`, "--candidate", `http://127.0.0.1:${candidate.address().port}`]);
     if (result.code !== expectedExit) throw new Error(`Expected exit code ${expectedExit}. Got ${result.code}. ${result.stderr}`);
     const report = JSON.parse(result.stdout);
@@ -69,7 +69,7 @@ async function verifyBuilderStatus(status, expectedExit, expectedAssertions) {
   const baseline = await httpServer(status);
   const candidate = await httpServer(status);
   try {
-    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "glamprobe.exe" : "glamprobe");
+    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "dcept.exe" : "dcept");
     const result = await run(binary, ["probe", "run", "glamsterdam/gloas-builder-status", "--baseline", `http://127.0.0.1:${baseline.address().port}`, "--candidate", `http://127.0.0.1:${candidate.address().port}`]);
     if (result.code !== expectedExit) throw new Error(`Expected Builder API exit code ${expectedExit}. Got ${result.code}. ${result.stderr}`);
     const report = JSON.parse(result.stdout);
@@ -87,7 +87,7 @@ async function verifyPayloadBid(status, expectedExit, expectedAssertions) {
   const baseline = await httpServer(status, capture);
   const candidate = await httpServer(status, capture);
   try {
-    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "glamprobe.exe" : "glamprobe");
+    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "dcept.exe" : "dcept");
     const slot = "123";
     const parentHash = "0xaaa";
     const parentRoot = "0xbbb";
@@ -111,13 +111,16 @@ async function verifyPayloadBid(status, expectedExit, expectedAssertions) {
 async function verifyGasProbe(blockResult, estimateResult, expectedExit, expectedAssertions) {
   const reply = (payload) => {
     if (payload.method === "eth_getBlockByNumber") return { result: blockResult };
+    if (payload.method === "eth_createAccessList") {
+      return { result: { accessList: [], gasUsed: estimateResult } };
+    }
     if (payload.method === "eth_estimateGas") return { result: estimateResult };
     return { error: { code: -32601, message: "method not found" } };
   };
   const baseline = await rpcServer(reply);
   const candidate = await rpcServer(reply);
   try {
-    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "glamprobe.exe" : "glamprobe");
+    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "dcept.exe" : "dcept");
     const result = await run(binary, ["probe", "run", "glamsterdam/gas-repricing-estimate", "--baseline", `http://127.0.0.1:${baseline.address().port}`, "--candidate", `http://127.0.0.1:${candidate.address().port}`, "--var", "sender=0x0000000000000000000000000000000000000001", "--var", "recipient=0x0000000000000000000000000000000000000002", "--var", "block=0x1234"]);
     if (result.code !== expectedExit) throw new Error(`Expected gas probe exit code ${expectedExit}. Got ${result.code}. ${result.stderr}`);
     const report = JSON.parse(result.stdout);
@@ -130,11 +133,28 @@ async function verifyGasProbe(blockResult, estimateResult, expectedExit, expecte
   }
 }
 
+async function verifyBlockAccessListProbe(result, expectedExit, expectedAssertions) {
+  const baseline = await rpcServer(result);
+  const candidate = await rpcServer(result);
+  try {
+    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "dcept.exe" : "dcept");
+    const runResult = await run(binary, ["probe", "run", "glamsterdam/block-access-list-retrieval", "--baseline", `http://127.0.0.1:${baseline.address().port}`, "--candidate", `http://127.0.0.1:${candidate.address().port}`, "--var", "block=0x1234"]);
+    if (runResult.code !== expectedExit) throw new Error(`Expected block-access-list probe exit code ${expectedExit}. Got ${runResult.code}. ${runResult.stderr}`);
+    const report = JSON.parse(runResult.stdout);
+    const failures = report.actions?.[0]?.assertion_failures ?? [];
+    if (failures.length !== expectedAssertions) throw new Error(`Expected ${expectedAssertions} block-access-list assertion failures. Got ${failures.length}.`);
+    if (expectedAssertions > 0 && report.actions?.[0]?.diffs?.length !== 0) throw new Error("The block-access-list probe must fail through assertions, not target differences.");
+  } finally {
+    baseline.close();
+    candidate.close();
+  }
+}
+
 async function verifyMalformedBlockAccessList(status, expectedExit, expectedAssertions) {
   const baseline = await rpcServer({ status });
   const candidate = await rpcServer({ status });
   try {
-    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "glamprobe.exe" : "glamprobe");
+    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "dcept.exe" : "dcept");
     const result = await run(binary, ["probe", "run", "glamsterdam/malformed-block-access-list", "--baseline", `http://127.0.0.1:${baseline.address().port}`, "--candidate", `http://127.0.0.1:${candidate.address().port}`, "--var", "new_payload_params=[{}]"]);
     if (result.code !== expectedExit) throw new Error(`Expected malformed payload exit code ${expectedExit}. Got ${result.code}. ${result.stderr}`);
     const report = JSON.parse(result.stdout);
@@ -163,7 +183,7 @@ async function verifyFixtureReplay() {
   const candidateCounter = { calls: candidateCalls };
   const baseline = await rpcServer(fixtureReply(baselineCounter));
   const candidate = await rpcServer(fixtureReply(candidateCounter));
-  const directory = await mkdtemp(join(tmpdir(), "glamprobe-fixture-"));
+  const directory = await mkdtemp(join(tmpdir(), "dcept-fixture-"));
   const fixture = join(directory, "fixture.json");
   await writeFile(fixture, JSON.stringify({
     valid_and_invalid: {
@@ -177,7 +197,7 @@ async function verifyFixtureReplay() {
     },
   }));
   try {
-    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "glamprobe.exe" : "glamprobe");
+    const binary = join(process.cwd(), "target", "debug", process.platform === "win32" ? "dcept.exe" : "dcept");
     const result = await run(binary, ["fixture", "run", fixture, "--case", "valid_and_invalid", "--baseline", `http://127.0.0.1:${baseline.address().port}`, "--candidate", `http://127.0.0.1:${candidate.address().port}`]);
     if (result.code !== 0) throw new Error(`Expected fixture replay to pass. Got ${result.code}. ${result.stderr}`);
     const report = JSON.parse(result.stdout);
@@ -200,7 +220,16 @@ await verifyPayloadBid(200, 0, 0);
 await verifyPayloadBid(404, 2, 2);
 await verifyGasProbe({ hash: "0x01", number: "0x1234" }, "0x5208", 0, 0);
 await verifyGasProbe({}, "0x5208", 2, 4);
-await verifyGasProbe({ hash: "0x01", number: "0x1234" }, "not-a-quantity", 2, 4);
+await verifyGasProbe({ hash: "0x01", number: "0x1234" }, "not-a-quantity", 2, 6);
+await verifyBlockAccessListProbe([{
+  address: "0x0000000000000000000000000000000000000001",
+  storageChanges: [],
+  storageReads: [],
+  balanceChanges: [],
+  nonceChanges: [],
+  codeChanges: [],
+}], 0, 0);
+await verifyBlockAccessListProbe([], 2, 12);
 await verifyMalformedBlockAccessList("INVALID", 0, 0);
 await verifyMalformedBlockAccessList("VALID", 2, 2);
 await verifyFixtureReplay();

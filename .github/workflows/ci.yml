@@ -12,29 +12,36 @@ jobs:
   rust:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
       - run: cargo fmt --check
       - run: cargo test
+      - run: cargo install cargo-audit --version 0.22.2 --locked
+      - run: cargo audit --deny warnings
       - run: node scripts/verify-local-run.mjs
+      - run: node scripts/verify-comparison-modes.mjs
+      - run: node scripts/controlled-geth-fork-lab.mjs --verify
       - run: node scripts/verify-glamsterdam-probes.mjs
       - run: node scripts/verify-action-report.mjs
       - run: cargo install wasm-pack --version 0.13.1 --locked
       - run: ./scripts/build-wasm.sh
       - run: node scripts/verify-wasm-core.mjs
+      - run: node scripts/verify-cross-path-conformance.mjs
   web:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/web
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
+      - run: npm audit --omit=dev --audit-level=moderate
+      - run: npm run test:security
       - run: npm run verify:probes
       - run: npm run typecheck
       - run: npm run build
@@ -45,11 +52,12 @@ jobs:
       run:
         working-directory: adapters
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: adapters/package-lock.json
       - run: npm ci
+      - run: npm audit --omit=dev --audit-level=moderate
       - run: npm run check

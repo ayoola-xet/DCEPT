@@ -8,7 +8,7 @@ const routes = [
 
 for (const route of routes) {
   const trace = await readFile(route, "utf8");
-  if (!trace.includes("node_modules/glamprobe/glamprobe_bg.wasm")) {
+  if (!trace.includes("node_modules/dcept/dcept_bg.wasm")) {
     throw new Error(`${route} does not include the Rust WebAssembly binary.`);
   }
 }

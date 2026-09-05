@@ -65,10 +65,10 @@ async function hardhatRequest(input) {
     throw new Error("hardhat.projectDirectory, hardhat.script, and hardhat.network are required for the Hardhat adapter.");
   }
   const result = await command("npx", ["hardhat", "run", "--network", hardhat.network, hardhat.script], hardhat.projectDirectory, {
-    GLAMPROBE_TARGET_URL: input.target.url,
-    GLAMPROBE_TARGET_HEADERS: JSON.stringify(input.target.headers ?? {}),
-    GLAMPROBE_RPC_METHOD: input.request.method,
-    GLAMPROBE_RPC_PARAMS: JSON.stringify(input.request.params),
+    DCEPT_TARGET_URL: input.target.url,
+    DCEPT_TARGET_HEADERS: JSON.stringify(input.target.headers ?? {}),
+    DCEPT_RPC_METHOD: input.request.method,
+    DCEPT_RPC_PARAMS: JSON.stringify(input.request.params),
   });
   if (result.code !== 0) throw new Error(`Hardhat command failed: ${result.stderr || result.stdout}`);
   try { return JSON.parse(result.stdout); } catch { return result.stdout.trim(); }

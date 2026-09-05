@@ -1,0 +1,112 @@
+version: 1
+name: powfaucet-fresh-account-transfer
+description: >-
+  Compare the gas estimate for the same 1-wei transfer to an existing account
+  and a fresh account on Platåberget. The devnet-6 faucet configuration records
+  a 100000 gas cap. A fresh-account transfer needs more gas under the
+  Amsterdam gas schedule. This is a control reproducer for faucet
+  compatibility. It is not a controlled protocol differential.
+probe:
+  upgrade: glamsterdam
+  eips: ["EIP-8037"]
+  category: faucet_compatibility
+  risk: high
+  sources:
+    - https://eips.ethereum.org/EIPS/eip-8037
+    - https://github.com/ethpandaops/glamsterdam-devnets/issues/46
+inputs:
+  sender:
+    description: A funded disposable sender on the target network.
+    kind: address
+    default: "0x0000000000000000000000000000000000000001"
+  existing_recipient:
+    description: An existing account on the target network.
+    kind: address
+    default: "0x0000000000000000000000000000000000000002"
+  fresh_recipient:
+    description: An account with no code and no balance on the target network.
+    kind: address
+    default: "0x9c8f4d2e1a7b6c5d4e3f2a190817263544332211"
+actions:
+  - kind: rpc
+    id: recipient-code-state
+    method: eth_getCode
+    baseline_params:
+      - "{{existing_recipient}}"
+      - latest
+    candidate_params:
+      - "{{fresh_recipient}}"
+      - latest
+    expect:
+      baseline:
+        - path: /result
+          equals: "0x"
+      candidate:
+        - path: /result
+          equals: "0x"
+  - kind: rpc
+    id: recipient-balance-state
+    method: eth_getBalance
+    baseline_params:
+      - "{{existing_recipient}}"
+      - latest
+    candidate_params:
+      - "{{fresh_recipient}}"
+      - latest
+    expect:
+      baseline:
+        - path: /result
+          is_hex_quantity: true
+      candidate:
+        - path: /result
+          is_hex_quantity: true
+  - kind: rpc
+    id: transfer-gas-by-recipient-state
+    method: eth_estimateGas
+    baseline_params:
+      - from: "{{sender}}"
+        to: "{{existing_recipient}}"
+        value: "0x1"
+    candidate_params:
+      - from: "{{sender}}"
+        to: "{{fresh_recipient}}"
+        value: "0x1"
+    expect:
+      baseline:
+        - path: /result
+          is_hex_quantity: true
+      candidate:
+        - path: /result
+          is_hex_quantity: true
+  - kind: rpc
+    id: faucet-100k-gas-cap
+    method: eth_estimateGas
+    baseline_params:
+      - from: "{{sender}}"
+        to: "{{existing_recipient}}"
+        value: "0x1"
+        gas: "0x186a0"
+    candidate_params:
+      - from: "{{sender}}"
+        to: "{{fresh_recipient}}"
+        value: "0x1"
+        gas: "0x186a0"
+    expect:
+      baseline:
+        - path: /result
+          is_hex_quantity: true
+  - kind: rpc
+    id: faucet-transfer-at-100k
+    method: eth_call
+    baseline_params:
+      - from: "{{sender}}"
+        to: "{{existing_recipient}}"
+        value: "0x1"
+        gas: "0x186a0"
+      - latest
+    candidate_params:
+      - from: "{{sender}}"
+        to: "{{fresh_recipient}}"
+        value: "0x1"
+        gas: "0x186a0"
+      - latest

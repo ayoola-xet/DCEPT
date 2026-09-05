@@ -1,4 +1,4 @@
-# GlamProbe downstream adapters
+# DCEPT downstream adapters
 
 This package tests a JSON-RPC operation through the client or tool that downstream software uses.
 
@@ -40,10 +40,10 @@ For `hardhat`, add a `hardhat` object with `projectDirectory`, `script`, and `ne
 
 The script receives these environment variables:
 
-- `GLAMPROBE_TARGET_URL`
-- `GLAMPROBE_TARGET_HEADERS`
-- `GLAMPROBE_RPC_METHOD`
-- `GLAMPROBE_RPC_PARAMS`
+- `DCEPT_TARGET_URL`
+- `DCEPT_TARGET_HEADERS`
+- `DCEPT_RPC_METHOD`
+- `DCEPT_RPC_PARAMS`
 
 Write one JSON result to standard output.
 

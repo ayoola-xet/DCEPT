@@ -1,9 +1,10 @@
 use std::{collections::BTreeMap, fs, path::PathBuf, process, time::Duration};
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
-use glamprobe::{
-    RunOptions, Scenario, Target, TargetPair, execute_fuzz, execute_scenario,
+use clap::{Parser, Subcommand, ValueEnum};
+use dcept::{
+    ComparisonMode, RunConfiguration, RunOptions, Scenario, Target, TargetPair, execute_fuzz,
+    execute_scenario,
     executor::headers_from_pairs,
     fixtures::{engine_fixture_scenario, inspect_engine_fixture, new_payload_v5_params},
     minimize_actions,
@@ -14,9 +15,9 @@ use reqwest::Url;
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "glamprobe",
+    name = "dcept",
     version,
-    about = "Differential compatibility testing for Ethereum protocol changes"
+    about = "Differential Compatibility for Ethereum Protocol Transitions"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -141,8 +142,58 @@ struct TargetArguments {
     candidate_headers: Vec<String>,
     #[arg(long, default_value_t = 30)]
     timeout_secs: u64,
+    /// Select the product purpose for this comparison.
+    #[arg(long, value_enum)]
+    mode: Option<ComparisonModeArgument>,
+    /// Identify the protocol rules used by the baseline target.
+    #[arg(long)]
+    baseline_protocol: Option<String>,
+    /// Identify the protocol rules used by the candidate target.
+    #[arg(long)]
+    candidate_protocol: Option<String>,
+    /// Identify the baseline client implementation.
+    #[arg(long)]
+    baseline_client: Option<String>,
+    /// Identify the candidate client implementation.
+    #[arg(long)]
+    candidate_client: Option<String>,
+    /// Record a deterministic fingerprint for the baseline starting state.
+    #[arg(long)]
+    baseline_state_fingerprint: Option<String>,
+    /// Record a deterministic fingerprint for the candidate starting state.
+    #[arg(long)]
+    candidate_state_fingerprint: Option<String>,
+    /// Explain why this run is a product control.
+    #[arg(long)]
+    control_reason: Option<String>,
+    /// Mark an upgrade probe as an explicit historical fork-boundary probe.
+    #[arg(long)]
+    historical_fork_boundary: bool,
+    /// Override mode identity protection.
+    #[arg(long)]
+    allow_mode_override: bool,
+    /// Record why mode identity protection was overridden.
+    #[arg(long)]
+    mode_override_reason: Option<String>,
     #[command(flatten)]
     inputs: InputArguments,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ComparisonModeArgument {
+    UpgradeDifferential,
+    ClientDifferential,
+    Control,
+}
+
+impl From<ComparisonModeArgument> for ComparisonMode {
+    fn from(value: ComparisonModeArgument) -> Self {
+        match value {
+            ComparisonModeArgument::UpgradeDifferential => Self::UpgradeDifferential,
+            ComparisonModeArgument::ClientDifferential => Self::ClientDifferential,
+            ComparisonModeArgument::Control => Self::Control,
+        }
+    }
 }
 
 #[derive(Debug, clap::Args)]
@@ -177,16 +228,9 @@ async fn main() -> Result<()> {
             output,
         } => {
             let scenario = read_scenario(&scenario, &targets.inputs)?;
-            let timeout = targets.timeout_secs;
+            let options = run_options(&targets, ComparisonMode::UpgradeDifferential);
             let targets = target_pair(targets)?;
-            let report = execute_scenario(
-                &scenario,
-                &targets,
-                &RunOptions {
-                    timeout: Duration::from_secs(timeout),
-                },
-            )
-            .await;
+            let report = execute_scenario(&scenario, &targets, &options).await?;
             let rendered =
                 serde_json::to_string_pretty(&report).context("could not encode run report")?;
             if let Some(output) = output {
@@ -206,9 +250,7 @@ async fn main() -> Result<()> {
             output,
         } => {
             let scenario = read_scenario(&scenario, &targets.inputs)?;
-            let options = RunOptions {
-                timeout: Duration::from_secs(targets.timeout_secs),
-            };
+            let options = run_options(&targets, ComparisonMode::UpgradeDifferential);
             let report =
                 execute_fuzz(&scenario, &target_pair(targets)?, &options, cases, seed).await?;
             let rendered =
@@ -228,9 +270,7 @@ async fn main() -> Result<()> {
             output,
         } => {
             let scenario = read_scenario(&scenario, &targets.inputs)?;
-            let options = RunOptions {
-                timeout: Duration::from_secs(targets.timeout_secs),
-            };
+            let options = run_options(&targets, ComparisonMode::UpgradeDifferential);
             let minimized = minimize_actions(&scenario, &target_pair(targets)?, &options).await?;
             let rendered =
                 serde_yaml::to_string(&minimized).context("could not encode minimized scenario")?;
@@ -241,7 +281,7 @@ async fn main() -> Result<()> {
         Command::Probe { command } => match command {
             ProbeCommand::List => {
                 for probe in built_in_probes() {
-                    println!("{}\t{}", probe.id, probe.title);
+                    println!("{}\t{}\t{}", probe.id, probe.comparison_mode, probe.title);
                 }
             }
             ProbeCommand::Show { id } => {
@@ -256,19 +296,23 @@ async fn main() -> Result<()> {
                 targets,
                 output,
             } => {
+                let default_mode = built_in_probes()
+                    .iter()
+                    .find(|probe| probe.id == id)
+                    .map(|probe| comparison_mode_from_name(probe.comparison_mode))
+                    .transpose()?
+                    .unwrap_or(ComparisonMode::UpgradeDifferential);
                 let scenario = load_built_in_probe(&id)?;
                 let supplied = parse_input_arguments(&targets.inputs, &scenario.inputs)?;
                 let scenario = scenario.resolve_inputs(&supplied)?;
-                let timeout = targets.timeout_secs;
+                let mut options = run_options(&targets, default_mode);
+                if options.configuration.comparison_mode == ComparisonMode::Control
+                    && options.configuration.control_reason.is_none()
+                {
+                    options.configuration.control_reason = scenario.description.clone();
+                }
                 let targets = target_pair(targets)?;
-                let report = execute_scenario(
-                    &scenario,
-                    &targets,
-                    &RunOptions {
-                        timeout: Duration::from_secs(timeout),
-                    },
-                )
-                .await;
+                let report = execute_scenario(&scenario, &targets, &options).await?;
                 let rendered =
                     serde_json::to_string_pretty(&report).context("could not encode run report")?;
                 if let Some(output) = output {
@@ -311,15 +355,9 @@ async fn main() -> Result<()> {
                 output,
             } => {
                 let scenario = engine_fixture_scenario(&read_fixture(&fixture)?, &fixture_case)?;
-                let timeout = targets.timeout_secs;
-                let report = execute_scenario(
-                    &scenario,
-                    &fixture_target_pair(targets)?,
-                    &RunOptions {
-                        timeout: Duration::from_secs(timeout),
-                    },
-                )
-                .await;
+                let options = fixture_run_options(&targets, &fixture_case);
+                let report =
+                    execute_scenario(&scenario, &fixture_target_pair(targets)?, &options).await?;
                 let rendered =
                     serde_json::to_string_pretty(&report).context("could not encode run report")?;
                 if let Some(output) = output {
@@ -397,6 +435,55 @@ fn target_pair(arguments: TargetArguments) -> Result<TargetPair> {
         arguments.baseline_headers,
         arguments.candidate_headers,
     )
+}
+
+fn run_options(arguments: &TargetArguments, default_mode: ComparisonMode) -> RunOptions {
+    RunOptions {
+        timeout: Duration::from_secs(arguments.timeout_secs),
+        configuration: RunConfiguration {
+            comparison_mode: arguments
+                .mode
+                .map(ComparisonMode::from)
+                .unwrap_or(default_mode),
+            baseline_protocol: arguments.baseline_protocol.clone(),
+            candidate_protocol: arguments.candidate_protocol.clone(),
+            baseline_client: arguments.baseline_client.clone(),
+            candidate_client: arguments.candidate_client.clone(),
+            baseline_state_fingerprint: arguments.baseline_state_fingerprint.clone(),
+            candidate_state_fingerprint: arguments.candidate_state_fingerprint.clone(),
+            control_reason: arguments.control_reason.clone(),
+            same_target: arguments.baseline_url == arguments.candidate_url,
+            allow_mode_override: arguments.allow_mode_override,
+            mode_override_reason: arguments.mode_override_reason.clone(),
+            historical_fork_boundary: arguments.historical_fork_boundary,
+        },
+    }
+}
+
+fn comparison_mode_from_name(value: &str) -> Result<ComparisonMode> {
+    match value {
+        "upgrade_differential" => Ok(ComparisonMode::UpgradeDifferential),
+        "client_differential" => Ok(ComparisonMode::ClientDifferential),
+        "control" => Ok(ComparisonMode::Control),
+        _ => anyhow::bail!("built-in probe has invalid comparison mode '{value}'"),
+    }
+}
+
+fn fixture_run_options(arguments: &FixtureTargetArguments, fixture_case: &str) -> RunOptions {
+    RunOptions {
+        timeout: Duration::from_secs(arguments.timeout_secs),
+        configuration: RunConfiguration {
+            comparison_mode: ComparisonMode::ClientDifferential,
+            baseline_protocol: Some("glamsterdam".to_owned()),
+            candidate_protocol: Some("glamsterdam".to_owned()),
+            baseline_client: Some(arguments.baseline_name.clone()),
+            candidate_client: Some(arguments.candidate_name.clone()),
+            baseline_state_fingerprint: Some(format!("fixture:{fixture_case}")),
+            candidate_state_fingerprint: Some(format!("fixture:{fixture_case}")),
+            same_target: arguments.baseline_url == arguments.candidate_url,
+            ..RunConfiguration::default()
+        },
+    }
 }
 
 fn fixture_target_pair(arguments: FixtureTargetArguments) -> Result<TargetPair> {

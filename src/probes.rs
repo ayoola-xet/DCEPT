@@ -6,41 +6,12 @@ use crate::{Scenario, ScenarioError};
 pub struct BuiltInProbe {
     pub id: &'static str,
     pub title: &'static str,
+    pub comparison_mode: &'static str,
     pub scenario: &'static str,
 }
 
-const GLAMSTERDAM_PROBES: &[BuiltInProbe] = &[
-    BuiltInProbe {
-        id: "glamsterdam/engine-api-surface",
-        title: "Amsterdam Engine API surface",
-        scenario: include_str!("../probes/glamsterdam/engine-api-surface.yaml"),
-    },
-    BuiltInProbe {
-        id: "glamsterdam/block-access-list-retrieval",
-        title: "Block access list retrieval",
-        scenario: include_str!("../probes/glamsterdam/block-access-list-retrieval.yaml"),
-    },
-    BuiltInProbe {
-        id: "glamsterdam/gas-repricing-estimate",
-        title: "Gas repricing estimates",
-        scenario: include_str!("../probes/glamsterdam/gas-repricing-estimate.yaml"),
-    },
-    BuiltInProbe {
-        id: "glamsterdam/malformed-block-access-list",
-        title: "Malformed block access list rejection",
-        scenario: include_str!("../probes/glamsterdam/malformed-block-access-list.yaml"),
-    },
-    BuiltInProbe {
-        id: "glamsterdam/gloas-builder-status",
-        title: "Gloas Builder API status",
-        scenario: include_str!("../probes/glamsterdam/gloas-builder-status.yaml"),
-    },
-    BuiltInProbe {
-        id: "glamsterdam/gloas-execution-payload-bid",
-        title: "Gloas execution payload bid",
-        scenario: include_str!("../probes/glamsterdam/gloas-execution-payload-bid.yaml"),
-    },
-];
+const GLAMSTERDAM_PROBES: &[BuiltInProbe] =
+    include!(concat!(env!("OUT_DIR"), "/probe_registry.rs"));
 
 pub fn built_in_probes() -> &'static [BuiltInProbe] {
     GLAMSTERDAM_PROBES
@@ -61,6 +32,10 @@ mod tests {
     #[test]
     fn every_built_in_probe_parses_with_protocol_metadata() {
         for probe in built_in_probes() {
+            assert!(matches!(
+                probe.comparison_mode,
+                "upgrade_differential" | "client_differential" | "control"
+            ));
             let scenario = load_built_in_probe(probe.id).expect("built-in probe must parse");
             assert_eq!(
                 scenario
@@ -70,5 +45,12 @@ mod tests {
                 Some("glamsterdam")
             );
         }
+        assert!(built_in_probes().iter().any(|probe| {
+            probe.id == "glamsterdam/gas-repricing-estimate"
+                && probe.comparison_mode == "upgrade_differential"
+        }));
+        assert!(built_in_probes().iter().any(|probe| {
+            probe.id == "glamsterdam/fork-boundary-control" && probe.comparison_mode == "control"
+        }));
     }
 }

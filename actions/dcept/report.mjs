@@ -9,14 +9,14 @@ for (const { action, caseIndex } of actionsIn(report)) {
     count += 1;
     const baseline = JSON.stringify(difference.baseline);
     const candidate = JSON.stringify(difference.candidate);
-    console.log(`::warning title=GlamProbe difference (${action.id})::${prefix}${difference.path || "/"}: baseline=${baseline}; candidate=${candidate}`);
+    console.log(`::warning title=DCEPT difference (${action.id})::${prefix}${difference.path || "/"}: baseline=${baseline}; candidate=${candidate}`);
   }
   for (const failure of action.assertion_failures ?? []) {
     count += 1;
-    console.log(`::warning title=GlamProbe assertion (${action.id})::${prefix}${failure.target} does not satisfy ${failure.rule} at ${failure.path || "/"}.`);
+    console.log(`::warning title=DCEPT assertion (${action.id})::${prefix}${failure.target} does not satisfy ${failure.rule} at ${failure.path || "/"}.`);
   }
 }
-console.log(`GlamProbe found ${count} finding${count === 1 ? "" : "s"}.`);
+console.log(`DCEPT found ${count} finding${count === 1 ? "" : "s"}.`);
 
 function* actionsIn(value) {
   for (const action of value.actions ?? []) yield { action };

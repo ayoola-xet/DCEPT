@@ -1,6 +1,6 @@
 version: 1
 name: glamsterdam-block-access-list-retrieval
-description: Compare retrieval of a post-fork payload body, including the EIP-7928 blockAccessList field.
+description: Compare the public EIP-7928 block access list for one fixed post-fork execution block.
 probe:
   upgrade: glamsterdam
   eips: ["EIP-7928"]
@@ -11,23 +11,19 @@ probe:
     - https://eips.ethereum.org/EIPS/eip-7928
     - https://github.com/ethereum/execution-apis/blob/main/src/engine/amsterdam.md
 inputs:
-  first_block:
-    description: A known post-Glamsterdam execution block number in hexadecimal quantity form.
+  block:
+    description: A known post-Glamsterdam execution block number or block hash.
     kind: quantity
     required: true
-  count:
-    description: The number of payload bodies to retrieve. Keep this value small.
-    kind: quantity
-    default: "0x1"
 actions:
   - kind: rpc
-    id: payload-body-with-block-access-list
-    method: engine_getPayloadBodiesByRangeV2
-    params: ["{{first_block}}", "{{count}}"]
+    id: block-access-list
+    method: eth_getBlockAccessList
+    params: ["{{block}}"]
     expect:
       baseline:
         - path: /result/0
-          has_keys: [blockAccessList]
+          has_keys: [address, storageChanges, storageReads, balanceChanges, nonceChanges, codeChanges]
       candidate:
         - path: /result/0
-          has_keys: [blockAccessList]
+          has_keys: [address, storageChanges, storageReads, balanceChanges, nonceChanges, codeChanges]

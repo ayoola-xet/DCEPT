@@ -1,6 +1,6 @@
 version: 1
 name: glamsterdam-gas-repricing-estimate
-description: Compare estimation of a minimal value transfer and an access-list transfer on two targets at the same post-fork block context.
+description: Compare the same transactions from identical starting state under pre-Glamsterdam and Glamsterdam protocol rules.
 probe:
   upgrade: glamsterdam
   eips: ["EIP-2780", "EIP-7981", "EIP-8037", "EIP-8038"]
@@ -18,11 +18,11 @@ inputs:
     kind: address
     required: true
   recipient:
-    description: An account with the same state on both targets.
+    description: An existing EOA with the same state on both targets.
     kind: address
     required: true
   block:
-    description: An exact post-Glamsterdam block number shared by both targets, in hexadecimal quantity form.
+    description: The equivalent controlled block context on both protocol environments, in hexadecimal quantity form.
     kind: quantity
     required: true
 actions:
@@ -38,12 +38,27 @@ actions:
         - path: /result
           has_keys: [hash, number]
   - kind: rpc
-    id: minimal-value-transfer
+    id: zero-value-call-exact-gas
+    method: eth_createAccessList
+    params:
+      - from: "{{sender}}"
+        to: "{{recipient}}"
+        value: "0x0"
+      - "{{block}}"
+    expect:
+      baseline:
+        - path: /result/gasUsed
+          is_hex_quantity: true
+      candidate:
+        - path: /result/gasUsed
+          is_hex_quantity: true
+  - kind: rpc
+    id: zero-value-call
     method: eth_estimateGas
     params:
       - from: "{{sender}}"
         to: "{{recipient}}"
-        value: "0x1"
+        value: "0x0"
       - "{{block}}"
     expect:
       baseline:

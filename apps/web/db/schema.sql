@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS runs (
   candidate_headers_ciphertext TEXT NOT NULL,
   scenario_yaml_source TEXT NOT NULL,
   input_values JSONB NOT NULL DEFAULT '{}'::jsonb,
+  run_configuration JSONB NOT NULL,
   case_count INTEGER NOT NULL DEFAULT 1 CHECK (case_count > 0),
   status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'completed', 'failed', 'canceled')),
   report_json JSONB,

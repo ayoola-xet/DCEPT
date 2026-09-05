@@ -1,35 +1,83 @@
-import type { HostedAction, HostedScenario } from "./hosted-scenario";
+import type {
+  ActionExecution,
+  ActionPlan,
+  ActionReport,
+  FuzzCaseExecution,
+  FuzzPlan,
+  FuzzReport,
+  RunPlan,
+  RunConfiguration,
+  RunReport,
+  ScenarioView,
+} from "./core-types";
 
-type RustWasm = {
-  compare_json: (baseline: unknown, candidate: unknown, comparison: HostedAction["comparison"]) => unknown;
-  parse_scenario: (source: string) => unknown;
-  resolve_scenario: (source: string, inputs: Record<string, unknown>) => unknown;
+export type RustCore = {
+  parse_scenario: (source: string) => ScenarioView;
+  plan_scenario: (source: string, inputs: Record<string, unknown>) => RunPlan;
+  plan_configured_scenario: (source: string, inputs: Record<string, unknown>, configuration: RunConfiguration) => RunPlan;
+  plan_fuzz: (source: string, inputs: Record<string, unknown>, overrides: { cases?: number; seed?: number }) => FuzzPlan;
+  plan_configured_fuzz: (source: string, inputs: Record<string, unknown>, overrides: { cases?: number; seed?: number }, configuration: RunConfiguration) => FuzzPlan;
+  evaluate_action: (plan: ActionPlan, execution: ActionExecution) => ActionReport;
+  evaluate_run: (plan: RunPlan, executions: ActionExecution[], baselineTarget: string, candidateTarget: string) => RunReport;
+  build_run_report: (plan: RunPlan, actions: ActionReport[], baselineTarget: string, candidateTarget: string) => RunReport;
+  evaluate_fuzz: (plan: FuzzPlan, executions: FuzzCaseExecution[], baselineTarget: string, candidateTarget: string) => FuzzReport;
 };
 
-let core: Promise<RustWasm> | undefined;
+let core: Promise<RustCore> | undefined;
 
-async function loadCore(): Promise<RustWasm> {
-  core ??= import(/* webpackIgnore: true */ "glamprobe") as Promise<RustWasm>;
+export function loadCore(): Promise<RustCore> {
+  core ??= import(/* webpackIgnore: true */ "dcept") as Promise<RustCore>;
   return core;
 }
 
-export async function parseScenarioWithCore(source: string): Promise<HostedScenario> {
-  return (await loadCore()).parse_scenario(source) as HostedScenario;
+export async function parseScenarioWithCore(source: string): Promise<ScenarioView> {
+  return (await loadCore()).parse_scenario(source);
 }
 
-export async function resolveScenarioWithCore(source: string, inputs: Record<string, unknown>): Promise<HostedScenario> {
-  return (await loadCore()).resolve_scenario(source, inputs) as HostedScenario;
+export async function planScenarioWithCore(
+  source: string,
+  inputs: Record<string, unknown>,
+  configuration: RunConfiguration,
+): Promise<RunPlan> {
+  return (await loadCore()).plan_configured_scenario(source, inputs, configuration);
 }
 
-export async function compareWithCore(
-  baseline: unknown,
-  candidate: unknown,
-  comparison: HostedAction["comparison"],
-): Promise<unknown[]> {
-  return (await loadCore()).compare_json(baseline, candidate, comparison) as unknown[];
+export async function planFuzzWithCore(
+  source: string,
+  inputs: Record<string, unknown>,
+  configuration: RunConfiguration,
+  overrides: { cases?: number; seed?: number } = {},
+): Promise<FuzzPlan> {
+  return (await loadCore()).plan_configured_fuzz(source, inputs, overrides, configuration);
 }
 
-export async function comparisonCore(): Promise<(baseline: unknown, candidate: unknown, comparison: HostedAction["comparison"]) => unknown[]> {
-  const wasm = await loadCore();
-  return (baseline, candidate, comparison) => wasm.compare_json(baseline, candidate, comparison) as unknown[];
+export async function evaluateActionWithCore(plan: ActionPlan, execution: ActionExecution): Promise<ActionReport> {
+  return (await loadCore()).evaluate_action(plan, execution);
+}
+
+export async function evaluateRunWithCore(
+  plan: RunPlan,
+  executions: ActionExecution[],
+  baselineTarget = "baseline",
+  candidateTarget = "candidate",
+): Promise<RunReport> {
+  return (await loadCore()).evaluate_run(plan, executions, baselineTarget, candidateTarget);
+}
+
+export async function buildRunReportWithCore(
+  plan: RunPlan,
+  actions: ActionReport[],
+  baselineTarget = "baseline",
+  candidateTarget = "candidate",
+): Promise<RunReport> {
+  return (await loadCore()).build_run_report(plan, actions, baselineTarget, candidateTarget);
+}
+
+export async function evaluateFuzzWithCore(
+  plan: FuzzPlan,
+  executions: FuzzCaseExecution[],
+  baselineTarget = "baseline",
+  candidateTarget = "candidate",
+): Promise<FuzzReport> {
+  return (await loadCore()).evaluate_fuzz(plan, executions, baselineTarget, candidateTarget);
 }

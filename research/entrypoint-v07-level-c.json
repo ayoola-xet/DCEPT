@@ -1,0 +1,84 @@
+{
+  "case_id": "entrypoint-v07-5e0e3804-level-c",
+  "recorded_at": "2026-09-03",
+  "evidence_level": "C",
+  "project": "eth-infinitism account-abstraction EntryPoint v0.7",
+  "rule": "EIP-8037",
+  "report_snapshot": {
+    "commit": "67310335af1992c147264a1cde8becd118dd44b8",
+    "url": "https://github.com/ethereum/repricing-impact/blob/67310335af1992c147264a1cde8becd118dd44b8/site/data/eip-8037/affected/0x0000000071727de22e5e9d8baf0edac6f37da032.json"
+  },
+  "client": {
+    "image": "ethpandaops/geth:glamsterdam-devnet-8@sha256:50fad280c7e2a2d7df835b46753c7633882824fbf545efb63c03451f910090e8",
+    "baseline_protocol": "osaka",
+    "candidate_protocol": "glamsterdam"
+  },
+  "account_implementation": {
+    "proxy": "0xa7ba82f49f3065a0c3f3d5f73d13b90114c37fc7",
+    "implementation": "0x94f097e1ebeb4eca3aae54cabb08905b239a7d27",
+    "project": "ZeroDev Kernel",
+    "source_commit": "f2a84a332ec5a722e7e95a0d64601905c3c87fe9"
+  },
+  "state": {
+    "source": "Geth debug_traceTransaction prestateTracer for the parent of the historical transaction",
+    "parent_block": 21349726,
+    "parent_block_hash": "0x2b39d9d732927187a2c5908d63fe71aa4bff8cdd683f7f17b7f257c6163045ff",
+    "state_root": "0x5294253f08cc8c5ab5b32c2267c37a3c081dea5a17febed1d09a2c46440f14d0",
+    "account_count": 12,
+    "equivalence": "verified"
+  },
+  "transaction": {
+    "hash": "0x5e0e38047dfa6fce58548a2f0b402bc3faccf4e7a3d5860f5b3c83796052ad66",
+    "block": 21349727,
+    "from": "0x4337001fff419768e088ce247456c1b892888084",
+    "to": "0x0000000071727de22e5e9d8baf0edac6f37da032",
+    "nonce": "0xb24",
+    "gas": "0xc06b5",
+    "value": "0x0",
+    "selector": "0x765e827f",
+    "calldata_bytes": 1252,
+    "calldata_sha256": "9973507c8241e2b12459ea3a1f90b788c906e50a412417e1cfc31a5b90f4c2c4",
+    "access_list_entries": 0
+  },
+  "dcept": {
+    "scenario": "research/transaction-replay.yaml",
+    "comparison_mode": "upgrade_differential",
+    "requests_equivalent": true,
+    "definitive_compatibility_claim": true
+  },
+  "first_protocol_sensitive_state_write": {
+    "frame_depth": 3,
+    "contract": "0x94f097e1ebeb4eca3aae54cabb08905b239a7d27",
+    "contract_role": "ZeroDev Kernel implementation for the sampled account",
+    "opcode": "SSTORE",
+    "program_counter": 1347,
+    "storage_slot": "0x51635ee77ad1184148efcf27676f6e8775fe6612cd66fa01297588c612152b74",
+    "original_value": "0x0",
+    "new_value": "0x1",
+    "baseline_execution_gas": 20000,
+    "candidate_execution_gas": 10100,
+    "candidate_state_gas": 97920,
+    "candidate_total_gas": 108020,
+    "state_gas_formula": "64 bytes x CPSB 1530"
+  },
+  "validation_gas": {
+    "verification_gas_limit": 240234,
+    "account_validation_call_baseline_gas_used": 110346,
+    "account_validation_call_candidate_gas_used": 199966,
+    "candidate_revert_reason": "AA26 over verificationGasLimit"
+  },
+  "result": {
+    "baseline": {
+      "protocol": "osaka",
+      "result": "0x"
+    },
+    "candidate": {
+      "protocol": "glamsterdam",
+      "jsonrpc_error_code": 3,
+      "revert_selector": "0x220266b6",
+      "decoded_message": "AA26 over verificationGasLimit"
+    },
+    "interpretation": "The exact historical EntryPoint execution completes under Osaka and is rejected by EntryPoint under the Glamsterdam rules in the pinned client.",
+    "level_d": "pending"
+  }
+}

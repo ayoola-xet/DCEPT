@@ -1,7 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
-const SESSION_COOKIE = "glamprobe_session";
+const SESSION_COOKIE = "dcept_session";
 
 export type Session = { organizationId: string; userId: string; walletAddress: string };
 

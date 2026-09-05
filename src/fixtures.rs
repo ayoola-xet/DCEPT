@@ -81,7 +81,7 @@ pub fn new_payload_v5_params(
 /// Build a scenario that replays each Engine API directive in one fixture case.
 ///
 /// The targets must already run with the fixture network, genesis header, and
-/// pre-state. GlamProbe does not create or configure nodes.
+/// pre-state. DCEPT does not create or configure nodes.
 pub fn engine_fixture_scenario(source: &str, fixture_case: &str) -> Result<Scenario, FixtureError> {
     let root: Value = serde_json::from_str(source)
         .map_err(|error| FixtureError::InvalidJson(error.to_string()))?;

@@ -3,20 +3,45 @@ id: glamsterdam
 title: Glamsterdam differential probe pack
 status: devnet
 fixture_release: tests-glamsterdam-devnet@v8.1.0
+default_probe: glamsterdam/gas-repricing-estimate
 scope:
   - EIP-7928 block-level access lists and Amsterdam Engine API versions
   - EIP-2780, EIP-7981, EIP-8037, and EIP-8038 gas repricing
   - EIP-7732 Gloas Builder API availability and execution payload bids
 probes:
   - id: glamsterdam/engine-api-surface
+    title: Amsterdam Engine API surface
+    comparison_mode: client_differential
     scenario: engine-api-surface.yaml
   - id: glamsterdam/block-access-list-retrieval
+    title: Block access list retrieval
+    comparison_mode: client_differential
     scenario: block-access-list-retrieval.yaml
   - id: glamsterdam/gas-repricing-estimate
+    title: Gas repricing estimates
+    comparison_mode: upgrade_differential
     scenario: gas-repricing-estimate.yaml
   - id: glamsterdam/malformed-block-access-list
+    title: Malformed block access list rejection
+    comparison_mode: client_differential
     scenario: malformed-block-access-list.yaml
   - id: glamsterdam/gloas-builder-status
+    title: Gloas Builder API status
+    comparison_mode: client_differential
     scenario: gloas-builder-status.yaml
   - id: glamsterdam/gloas-execution-payload-bid
+    title: Gloas execution payload bid
+    comparison_mode: client_differential
     scenario: gloas-execution-payload-bid.yaml
+  - id: glamsterdam/fork-boundary-control
+    title: EIP-7928 fork-boundary control
+    comparison_mode: control
+    scenario: fork-boundary-control.yaml
+  - id: glamsterdam/createx-presigned-deployment
+    title: CreateX pre-signed deployment compatibility
+    comparison_mode: control
+    scenario: createx-presigned-deployment.yaml
+  - id: glamsterdam/powfaucet-fresh-account-transfer
+    title: PoW faucet fresh-account transfer gas
+    comparison_mode: control
+    scenario: powfaucet-fresh-account-transfer.yaml

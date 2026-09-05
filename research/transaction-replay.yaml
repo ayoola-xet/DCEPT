@@ -1,0 +1,44 @@
+version: 1
+name: project-transaction-replay
+description: Replay one historical project transaction as a read-only call on two controlled protocol environments.
+inputs:
+  sender:
+    description: The original transaction sender.
+    kind: address
+    required: true
+  target:
+    description: The original transaction target.
+    kind: address
+    required: true
+  calldata:
+    description: The complete input data from the original transaction.
+    kind: string
+    required: true
+  gas:
+    description: The original transaction gas limit.
+    kind: quantity
+    required: true
+  value:
+    description: The original transaction value.
+    kind: quantity
+    default: "0x0"
+  access_list:
+    description: The original access list as a JSON array.
+    kind: json
+    default: []
+  block:
+    description: The equivalent block context on both controlled environments.
+    kind: quantity
+    required: true
+actions:
+  - kind: rpc
+    id: historical-transaction-call
+    method: eth_call
+    params:
+      - from: "{{sender}}"
+        to: "{{target}}"
+        gas: "{{gas}}"
+        value: "{{value}}"
+        data: "{{calldata}}"
+        accessList: "{{access_list}}"
+      - "{{block}}"

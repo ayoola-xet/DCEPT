@@ -5,7 +5,7 @@ use serde_json::Value;
 use thiserror::Error;
 
 /// A versioned, source-controlled definition of equivalent target operations.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Scenario {
     #[serde(default = "default_version")]
@@ -23,7 +23,7 @@ pub struct Scenario {
 }
 
 /// Protocol context that turns a generic scenario into a versioned upgrade probe.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ProbeMetadata {
     pub upgrade: String,
@@ -37,7 +37,7 @@ pub struct ProbeMetadata {
 }
 
 /// A named runtime value needed by a reusable scenario.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ScenarioInput {
     pub description: String,
@@ -49,7 +49,7 @@ pub struct ScenarioInput {
     pub default: Option<Value>,
 }
 
-#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum InputKind {
     #[default]
@@ -283,6 +283,7 @@ impl Scenario {
             }
         }
         resolved.inputs.clear();
+        resolved.validate()?;
         Ok(resolved)
     }
 
@@ -360,7 +361,7 @@ impl Scenario {
 
 /// A scenario action. `rpc` supports every JSON-RPC method, including trace and
 /// raw signed transaction methods. `http` supports downstream compatibility checks.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Action {
     Rpc(RpcAction),
@@ -397,7 +398,7 @@ impl Action {
             Self::Http(action) if action.method.trim().is_empty() => {
                 return Err(ScenarioError::MissingHttpMethod(action.id.clone()));
             }
-            Self::Http(action) if !action.path.starts_with('/') => {
+            Self::Http(action) if !is_safe_http_path(&action.path) => {
                 return Err(ScenarioError::InvalidHttpPath(action.id.clone()));
             }
             _ => {}
@@ -406,7 +407,11 @@ impl Action {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+fn is_safe_http_path(path: &str) -> bool {
+    path.starts_with('/') && !path.starts_with("//") && !path.contains('\\')
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct RpcAction {
     pub id: String,
@@ -427,7 +432,7 @@ fn empty_array() -> Value {
     Value::Array(Vec::new())
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct HttpAction {
     pub id: String,
@@ -453,7 +458,7 @@ pub struct HttpAction {
 
 /// Required response properties for each target. These checks detect a shared
 /// missing feature that ordinary target-to-target comparison cannot detect.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct TargetExpectations {
     #[serde(default)]
@@ -462,7 +467,7 @@ pub struct TargetExpectations {
     pub candidate: Vec<ResponseAssertion>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ResponseAssertion {
     pub path: String,
@@ -500,7 +505,7 @@ impl TargetExpectations {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Comparison {
     /// RFC 6901 JSON pointer paths that do not affect a finding.
@@ -510,7 +515,7 @@ pub struct Comparison {
     pub numeric_tolerances: Vec<NumericTolerance>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct NumericTolerance {
     /// An RFC 6901 JSON pointer path.
@@ -520,7 +525,7 @@ pub struct NumericTolerance {
 }
 
 /// Declarative input values for deterministic compatibility fuzzing.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct FuzzConfig {
     #[serde(default = "default_fuzz_cases")]
@@ -566,7 +571,7 @@ impl FuzzConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct FuzzMutation {
     pub action: String,
@@ -577,7 +582,7 @@ pub struct FuzzMutation {
     pub values: Vec<Value>,
 }
 
-#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TargetScope {
     #[default]
@@ -586,14 +591,14 @@ pub enum TargetScope {
     Candidate,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct FuzzCase {
     pub index: u32,
     pub scenario: Scenario,
     pub mutations: Vec<AppliedMutation>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct AppliedMutation {
     pub action: String,
     pub scope: TargetScope,
@@ -615,7 +620,7 @@ impl DeterministicGenerator {
             .state
             .wrapping_mul(6364136223846793005)
             .wrapping_add(1442695040888963407);
-        (self.state as usize) % length
+        (self.state % length as u64) as usize
     }
 }
 
@@ -705,7 +710,7 @@ pub enum ScenarioError {
     MissingRpcMethod(String),
     #[error("HTTP action '{0}' needs a method")]
     MissingHttpMethod(String),
-    #[error("HTTP action '{0}' must use a path that starts with '/'")]
+    #[error("HTTP action '{0}' must use a same-target path that starts with one '/'")]
     InvalidHttpPath(String),
     #[error("assertion for action '{action}' has invalid JSON pointer path '{path}'")]
     InvalidAssertionPath { action: String, path: String },
@@ -773,6 +778,26 @@ actions:
         );
 
         assert!(matches!(result, Err(ScenarioError::DuplicateActionId(_))));
+    }
+
+    #[test]
+    fn rejects_http_paths_that_can_change_the_target_host() {
+        for path in ["//attacker.example/path", "/\\attacker.example/path"] {
+            let source = format!(
+                r#"
+name: unsafe-http-path
+actions:
+  - kind: http
+    id: request
+    method: GET
+    path: '{path}'
+"#
+            );
+            assert!(matches!(
+                Scenario::from_yaml(&source),
+                Err(ScenarioError::InvalidHttpPath(_))
+            ));
+        }
     }
 
     #[test]
@@ -908,5 +933,32 @@ actions:
             action.headers.get("Eth-Consensus-Version"),
             Some(&"gloas".to_owned())
         );
+    }
+
+    #[test]
+    fn rejects_an_input_that_changes_the_http_target_host() {
+        let scenario = Scenario::from_yaml(
+            r#"
+name: unsafe-http-input
+inputs:
+  suffix:
+    description: A target path suffix.
+    required: true
+actions:
+  - kind: http
+    id: request
+    method: GET
+    path: /{{suffix}}
+"#,
+        )
+        .expect("the unresolved path is valid");
+        let inputs = BTreeMap::from([(
+            "suffix".to_owned(),
+            Value::String("/attacker.example/path".to_owned()),
+        )]);
+        assert!(matches!(
+            scenario.resolve_inputs(&inputs),
+            Err(ScenarioError::InvalidHttpPath(_))
+        ));
     }
 }

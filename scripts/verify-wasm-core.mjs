@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const wasm = require("../apps/web/lib/wasm/glamprobe.js");
+const wasm = require("../apps/web/lib/wasm/dcept.js");
 
 const scenario = `version: 1
 name: wasm-core-invariant

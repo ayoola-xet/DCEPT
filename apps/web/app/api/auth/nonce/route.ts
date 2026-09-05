@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 
-const nonceCookie = "glamprobe_nonce";
+const nonceCookie = "dcept_nonce";
 
 export async function POST() {
   const nonce = randomBytes(16).toString("hex");

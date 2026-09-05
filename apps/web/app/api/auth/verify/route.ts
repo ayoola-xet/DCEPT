@@ -7,7 +7,7 @@ import { database, newId } from "@/lib/db";
 import { createSession, sessionCookie } from "@/lib/session";
 
 const bodySchema = z.object({ message: z.string().min(1), signature: z.string().min(1) });
-const nonceCookie = "glamprobe_nonce";
+const nonceCookie = "dcept_nonce";
 
 export async function POST(request: NextRequest) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));

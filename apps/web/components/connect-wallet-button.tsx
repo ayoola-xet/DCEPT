@@ -32,7 +32,7 @@ export function ConnectWalletButton() {
       const message = new SiweMessage({
         domain: window.location.host,
         address: accounts[0],
-        statement: "Sign in to GlamProbe.",
+        statement: "Sign in to DCEPT Cloud.",
         uri: window.location.origin,
         version: "1",
         chainId: Number.parseInt(chainId, 16),
@@ -55,7 +55,7 @@ export function ConnectWalletButton() {
   return (
     <span className="wallet-control">
       <button className="wallet-button" type="button" onClick={connect} disabled={state === "loading"}>
-        {state === "loading" ? "Connecting…" : "Cloud sign in"}
+        {state === "loading" ? "Connecting…" : "Sign in"}
       </button>
       {state === "error" && <span className="wallet-error" role="alert">{error}</span>}
     </span>

@@ -11,7 +11,7 @@ export default function ScenariosPage() {
   return (
     <section className="content">
       <div className="page-heading compact">
-        <div><div className="eyebrow">Glamsterdam probe catalog</div><h1>Protocol probes</h1><p>Each probe has a versioned EIP scope, required inputs, and a protocol risk level.</p></div>
+        <div><div className="eyebrow">DCEPT probe catalog</div><h1>Protocol probes</h1><p>Each probe has a versioned EIP scope, required inputs, and a protocol risk level.</p></div>
         <a className="primary-action" href="/">Run a probe</a>
       </div>
       <section className="scenario-grid">

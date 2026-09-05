@@ -1,0 +1,38 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      rust-dependencies:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /apps/web
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      web-dependencies:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /adapters
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      adapter-dependencies:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]

@@ -1,0 +1,134 @@
+{
+  "evidence_level": "D",
+  "classification": "unsafe",
+  "observed_at": "2026-09-04",
+  "project": "Pimlico Alto",
+  "alto_source_commit": "093f2993902016ddbed02ac557f88c6127cc85d1",
+  "alto_source_url": "https://github.com/pimlicolabs/alto/tree/093f2993902016ddbed02ac557f88c6127cc85d1",
+  "entry_point": "0x0000000071727de22e5e9d8baf0edac6f37da032",
+  "client": "ethpandaops/geth:glamsterdam-devnet-8@sha256:50fad280c7e2a2d7df835b46753c7633882824fbf545efb63c03451f910090e8",
+  "baseline": {
+    "protocol": "osaka",
+    "rpc": "http://127.0.0.1:18576",
+    "bundler_rpc": "http://127.0.0.1:3101",
+    "estimate_user_operation_gas": {
+      "preVerificationGas": "0xcd01",
+      "verificationGasLimit": "0x2cb2c",
+      "callGasLimit": "0xb233",
+      "paymasterVerificationGasLimit": "0x7815",
+      "paymasterPostOpGasLimit": "0x1"
+    },
+    "gas_only_entry_point_check": "AA24 signature error after the verification gas check"
+  },
+  "candidate": {
+    "protocol": "glamsterdam",
+    "rpc": "http://127.0.0.1:28576",
+    "bundler_rpc": "http://127.0.0.1:3102",
+    "estimate_user_operation_gas": {
+      "preVerificationGas": "0xcd01",
+      "verificationGasLimit": "0x280c9",
+      "callGasLimit": "0x78fb",
+      "paymasterVerificationGasLimit": "0x9d46",
+      "paymasterPostOpGasLimit": "0x1"
+    },
+    "gas_only_entry_point_check": {
+      "verificationGasLimit": "0x280c9",
+      "result": "AA26 over verificationGasLimit"
+    }
+  },
+  "historical_user_operation": {
+    "transaction": "0x5e0e38047dfa6fce58548a2f0b402bc3faccf4e7a3d5860f5b3c83796052ad66",
+    "transaction_block": 21349727,
+    "parent_block": 21349726,
+    "state_root": "0x5294253f08cc8c5ab5b32c2267c37a3c081dea5a17febed1d09a2c46440f14d0",
+    "user_operation_file": "entrypoint-v07-user-operation.json",
+    "sender": "0xA7ba82F49f3065A0C3F3D5F73d13b90114c37Fc7",
+    "nonce": "0x2b74479db0000000000000000000000000000000000000000000000000000",
+    "outer_transaction_input_sha256": "9973507c8241e2b12459ea3a1f90b788c906e50a412417e1cfc31a5b90f4c2c4",
+    "user_operation_call_data_sha256": "0ede190c0762538aceeb7192aca5a0eccbf3948b8968637b59d59bf742c7480a",
+    "original_verificationGasLimit": "0x3aa6a",
+    "original_callGasLimit": "0x25d04",
+    "original_preVerificationGas": "0xe116",
+    "original_paymasterVerificationGasLimit": "0x6bee",
+    "original_paymasterPostOpGasLimit": "0x1"
+  },
+  "gas_only_check": {
+    "purpose": "Measure the EntryPoint gas guard without a hash-dependent signature result.",
+    "state_override": {
+      "description": "Replace the two permission policies and the signer with deterministic return stubs. Replace the paymaster with a valid empty-context return stub.",
+      "does_not_change": [
+        "account storage",
+        "account bytecode",
+        "EntryPoint bytecode",
+        "protocol fork rules",
+        "state root"
+      ],
+      "addresses": {
+        "policy_1": "0x67fa43ca2d689bea4d10b9f2c96828828a2ab275",
+        "policy_2": "0xf6a936c88d97e6fad13b98d2fd731ff17eed591d",
+        "signer": "0x6a6f069e2a08c2468e7724ab3250cdbfba14d4ff",
+        "paymaster": "0x0000000000000039cd5e8ae05257ce51c473ddd1"
+      },
+      "result_semantics": "AA24 means the gas guard passed and only the deliberately invalid signature result remained. AA26 means the gas guard failed before signature classification."
+    },
+    "candidate_threshold": {
+      "lower_bound": {
+        "verificationGasLimit": "0x42ff0",
+        "decimal": 274416,
+        "result": "AA26 over verificationGasLimit"
+      },
+      "upper_bound": {
+        "verificationGasLimit": "0x4302c",
+        "decimal": 274476,
+        "result": "AA24 signature error"
+      },
+      "candidate_estimate": {
+        "verificationGasLimit": "0x280c9",
+        "decimal": 164041
+      },
+      "minimum_observed_shortfall": 110435
+    }
+  },
+  "fresh_signed_check": {
+    "status": "confirmed_with_signer_state_override",
+    "purpose": "Remove the historical-signature limitation while keeping the account, EntryPoint, paymaster, policies, and fork state unchanged.",
+    "signing_key": "Anvil default test key; never use this key for funds or production transactions.",
+    "signing_address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "user_operation_hash": "0xf1068ffa4f5a0bf81162912ed5ec14c55e1b1cf6004ea6a1b58eaf23a0907652",
+    "signature_format": "0xff || personal_sign( userOperationHash )",
+    "signer_state_override": {
+      "contract": "0x6a6f069e2a08c2468e7724ab3250cdbfba14d4ff",
+      "mapping_slot": "0x9b287a9e94e503891aa2fce40d2222ab4a6a33af1237c2eb926c0203088c203f",
+      "original_value": "0x00000000000000000000000015f682fa2f80d43fd96d0ffeef959f9896efc2c6",
+      "override_value": "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+    },
+    "alto_estimate_recheck": {
+      "osaka": {
+        "bundler_rpc": "http://127.0.0.1:3101",
+        "verificationGasLimit": "0x2cb2c",
+        "callGasLimit": "0xb233",
+        "paymasterVerificationGasLimit": "0x7815",
+        "paymasterPostOpGasLimit": "0x1"
+      },
+      "glamsterdam": {
+        "bundler_rpc": "http://127.0.0.1:3102",
+        "verificationGasLimit": "0x280c9",
+        "callGasLimit": "0x78fb",
+        "paymasterVerificationGasLimit": "0x9d46",
+        "paymasterPostOpGasLimit": "0x1"
+      }
+    },
+    "entry_point_replay": {
+      "user_operation_file": "entrypoint-v07-user-operation.json",
+      "verificationGasLimit": "0x3aa6a",
+      "osaka": "0x",
+      "glamsterdam": "AA26 over verificationGasLimit"
+    },
+    "interpretation": "The newly signed operation reaches the real EntryPoint path. Osaka completes the call. Glamsterdam rejects the same logical operation at the verification gas guard. The test still uses one signer storage override because the historical owner's private key is not available. It does not use policy, signer, paymaster, account-code, or EntryPoint code stubs."
+  },
+  "interpretation": {
+    "finding": "Alto's Glamsterdam estimate is unsafe for this operation. The fresh-signature recheck reaches the real EntryPoint path and preserves the AA26 result at the historical verification limit.",
+    "scope": "This proves a current Alto estimator incompatibility for this controlled EntryPoint v0.7 case. It does not prove that every Alto UserOperation fails or that every bundler has the same defect.",
+    "next_test": "Repeat the same fresh-signature experiment with a current Rundler build. Replace the signer storage override with a real controlled account key before making a no-override claim."
+  }
+}

@@ -1,0 +1,34 @@
+version: 1
+name: controlled-pre-vs-post-glamsterdam
+description: Execute the same zero-value call from identical state under two protocol rule sets.
+probe:
+  upgrade: glamsterdam
+  eips: ["EIP-2780"]
+  category: gas_repricing
+  risk: high
+actions:
+  - kind: rpc
+    id: state-fingerprint
+    method: eth_getBlockByNumber
+    params: ["0x0", false]
+    expect:
+      baseline:
+        - path: /result
+          has_keys: [hash, stateRoot]
+      candidate:
+        - path: /result
+          has_keys: [hash, stateRoot]
+  - kind: rpc
+    id: zero-value-call-estimate
+    method: eth_estimateGas
+    params:
+      - from: "0x0000000000000000000000000000000000000001"
+        to: "0x0000000000000000000000000000000000000002"
+        value: "0x0"
+    expect:
+      baseline:
+        - path: /result
+          is_hex_quantity: true
+      candidate:
+        - path: /result
+          is_hex_quantity: true

@@ -1,15 +1,27 @@
 {
-  "name": "glamprobe",
+  "name": "dcept",
   "type": "module",
+  "description": "Differential Compatibility for Ethereum Protocol Transitions",
   "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ayoola-xet/DCEPT"
+  },
   "files": [
-    "glamprobe_bg.wasm",
-    "glamprobe.js",
-    "glamprobe.d.ts"
+    "dcept_bg.wasm",
+    "dcept.js",
+    "dcept.d.ts"
   ],
-  "main": "glamprobe.js",
-  "types": "glamprobe.d.ts",
+  "main": "dcept.js",
+  "types": "dcept.d.ts",
   "sideEffects": [
     "./snippets/*"
+  ],
+  "keywords": [
+    "ethereum",
+    "compatibility",
+    "json-rpc",
+    "testing"
   ]
 }

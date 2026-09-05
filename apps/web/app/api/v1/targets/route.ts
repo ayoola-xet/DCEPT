@@ -5,7 +5,7 @@ import { badRequest, hasScope, isResponse, requireSession } from "@/lib/api";
 import { requireAccess } from "@/lib/authorization";
 import { encrypt } from "@/lib/crypto";
 import { database, newId } from "@/lib/db";
-import { validateTargetUrl } from "@/lib/target-url";
+import { validatePublicTargetUrl } from "@/lib/target-url";
 
 const targetSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
   if (denied) return denied;
   const parsed = targetSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return badRequest("Target name, HTTPS endpoint URL, and string headers are required.");
-  const targetUrlError = validateTargetUrl(parsed.data.endpointUrl);
+  const targetUrlError = await validatePublicTargetUrl(parsed.data.endpointUrl);
   if (targetUrlError) return badRequest(targetUrlError);
 
   const id = newId();

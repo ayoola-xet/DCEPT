@@ -177,6 +177,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "dcept"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "reqwest",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "serde_yaml",
+ "thiserror",
+ "tokio",
+ "url",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "displaydoc"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -265,23 +282,6 @@ dependencies = [
  "libc",
  "r-efi",
  "rand_core",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "glamprobe"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "reqwest",
- "serde",
- "serde-wasm-bindgen",
- "serde_json",
- "serde_yaml",
- "thiserror",
- "tokio",
- "url",
  "wasm-bindgen",
 ]
 

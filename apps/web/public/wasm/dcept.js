@@ -1,4 +1,24 @@
-/* @ts-self-types="./glamprobe.d.ts" */
+/* @ts-self-types="./dcept.d.ts" */
+
+/**
+ * Build one report from Rust-evaluated action reports.
+ * @param {any} plan
+ * @param {any} actions
+ * @param {string} baseline_target
+ * @param {string} candidate_target
+ * @returns {any}
+ */
+export function build_run_report(plan, actions, baseline_target, candidate_target) {
+    const ptr0 = passStringToWasm0(baseline_target, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(candidate_target, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.build_run_report(plan, actions, ptr0, len0, ptr1, len1);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
 
 /**
  * Compare two parsed JSON values in a JavaScript workflow step.
@@ -16,6 +36,60 @@ export function compare_json(baseline, candidate, comparison) {
 }
 
 /**
+ * Evaluate one host execution with Rust comparison and assertion logic.
+ * @param {any} plan
+ * @param {any} execution
+ * @returns {any}
+ */
+export function evaluate_action(plan, execution) {
+    const ret = wasm.evaluate_action(plan, execution);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Evaluate complete deterministic fuzz executions and produce the report.
+ * @param {any} plan
+ * @param {any} executions
+ * @param {string} baseline_target
+ * @param {string} candidate_target
+ * @returns {any}
+ */
+export function evaluate_fuzz(plan, executions, baseline_target, candidate_target) {
+    const ptr0 = passStringToWasm0(baseline_target, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(candidate_target, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.evaluate_fuzz(plan, executions, ptr0, len0, ptr1, len1);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Evaluate a complete host run and produce the authoritative report.
+ * @param {any} plan
+ * @param {any} executions
+ * @param {string} baseline_target
+ * @param {string} candidate_target
+ * @returns {any}
+ */
+export function evaluate_run(plan, executions, baseline_target, candidate_target) {
+    const ptr0 = passStringToWasm0(baseline_target, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(candidate_target, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.evaluate_run(plan, executions, ptr0, len0, ptr1, len1);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * Parse and validate a YAML scenario without resolving its declared inputs.
  * @param {string} source
  * @returns {any}
@@ -24,6 +98,74 @@ export function parse_scenario(source) {
     const ptr0 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.parse_scenario(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Resolve a fuzz scenario and apply explicit comparison-mode metadata.
+ * @param {string} source
+ * @param {any} inputs
+ * @param {any} overrides
+ * @param {any} configuration
+ * @returns {any}
+ */
+export function plan_configured_fuzz(source, inputs, overrides, configuration) {
+    const ptr0 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.plan_configured_fuzz(ptr0, len0, inputs, overrides, configuration);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Resolve a scenario and apply explicit comparison-mode metadata.
+ * @param {string} source
+ * @param {any} inputs
+ * @param {any} configuration
+ * @returns {any}
+ */
+export function plan_configured_scenario(source, inputs, configuration) {
+    const ptr0 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.plan_configured_scenario(ptr0, len0, inputs, configuration);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Resolve a scenario and produce deterministic fuzz request plans.
+ * @param {string} source
+ * @param {any} inputs
+ * @param {any} overrides
+ * @returns {any}
+ */
+export function plan_fuzz(source, inputs, overrides) {
+    const ptr0 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.plan_fuzz(ptr0, len0, inputs, overrides);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Resolve a scenario and produce the authoritative request plan for a host.
+ * @param {string} source
+ * @param {any} inputs
+ * @returns {any}
+ */
+export function plan_scenario(source, inputs) {
+    const ptr0 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.plan_scenario(ptr0, len0, inputs);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -50,6 +192,10 @@ function __wbg_get_imports() {
         __proto__: null,
         __wbg_Error_408e67f47ca7b58b: function(arg0, arg1) {
             const ret = Error(getStringFromWasm0(arg0, arg1));
+            return ret;
+        },
+        __wbg_Number_3890faa6d3ff057d: function(arg0) {
+            const ret = Number(arg0);
             return ret;
         },
         __wbg_String_8564e559799eccda: function(arg0, arg1) {
@@ -282,7 +428,7 @@ function __wbg_get_imports() {
     };
     return {
         __proto__: null,
-        "./glamprobe_bg.js": import0,
+        "./dcept_bg.js": import0,
     };
 }
 
@@ -550,7 +696,7 @@ async function __wbg_init(module_or_path) {
     }
 
     if (module_or_path === undefined) {
-        module_or_path = new URL('glamprobe_bg.wasm', import.meta.url);
+        module_or_path = new URL('dcept_bg.wasm', import.meta.url);
     }
     const imports = __wbg_get_imports();
 

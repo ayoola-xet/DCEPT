@@ -1,79 +1,258 @@
-# GlamProbe
+# DCEPT
 
-GlamProbe finds compatibility differences between two Ethereum-compatible targets.
+DCEPT means Differential Compatibility for Ethereum Protocol Transitions.
 
-It runs the same declared scenario on a baseline target and a candidate target. It then writes a structured JSON report. A report contains both responses and each semantic difference.
+It compares two Ethereum environments:
 
-GlamProbe helps teams test an Ethereum upgrade before they use it in production.
+- **Baseline:** The current or reference environment.
+- **Candidate:** The new or changed environment.
 
-The Rust core and CLI are standalone. They do not need a database, wallet, login, Vercel account, session secret, encryption key, or Cloud configuration.
+DCEPT sends planned requests to both environments. It normalizes the responses.
+It then reports the exact differences.
 
-## No-login web workspace
+Use DCEPT before an Ethereum protocol upgrade. It can show how the upgrade can
+affect:
 
-The optional web application also has a public local-run page. It stores no
-scenario, endpoint, response, or account data. It loads the Rust scenario and
-comparison core as WebAssembly in the browser.
+- Smart contracts.
+- Wallets.
+- Block explorers.
+- Indexers.
+- RPC libraries.
+- Account abstraction systems.
+- Ethereum clients.
+- Builder API integrations.
+- Gas estimation.
+
+DCEPT is not a smart-contract security scanner. It tests changes in observable
+behavior.
+
+DCEPT is in pre-release development. Interfaces and scenario fields can change
+before version 1.0.0.
+
+## What DCEPT can do
+
+DCEPT can:
+
+- Compare any Ethereum JSON-RPC request.
+- Compare HTTP API responses.
+- Compare pre-upgrade rules with post-upgrade rules.
+- Compare two Ethereum clients.
+- Check required response values.
+- Ignore unstable fields, such as block hashes.
+- Permit specified numeric differences.
+- Generate repeatable fuzz-test inputs.
+- Reduce a failing scenario to a smaller reproducer.
+- Replay official Engine API fixtures.
+- Create detailed JSON reports.
+- Run in a browser, from the CLI, or in GitHub Actions.
+- Test through `ethers`, `viem`, Foundry, and Hardhat adapters.
+
+## How it works
+
+The main flow has four steps.
+
+```text
+Select a scenario
+       ↓
+Connect baseline and candidate targets
+       ↓
+Run the same planned operations
+       ↓
+Review the exact differences
+```
+
+A **scenario** is a YAML file that defines the requests and checks.
+
+A **finding** is a response difference or a failed check.
+
+A **state fingerprint** identifies the starting chain state. Matching fingerprints show that both environments started from equivalent state.
+
+## What a result means
+
+DCEPT can return these main results:
+
+- `matched`: Both targets produced the same normalized behavior.
+- `findings`: DCEPT found a difference or a failed check.
+- `inconclusive`: DCEPT found a difference, but it cannot confirm equivalent starting state.
+
+A finding is not always a defect. A protocol upgrade can create an intentional difference. Review the scenario and report before you classify the finding.
+
+## Choose a comparison mode
+
+Select one mode before you run a test.
+
+### Upgrade differential
+
+Use this mode to compare pre-upgrade rules with post-upgrade rules.
+
+This is the main DCEPT mode. Use the same starting state and the same logical inputs on both targets.
+
+### Client differential
+
+Use this mode to compare two Ethereum clients under the same protocol rules.
+
+For example, you can compare Geth with Reth on the same fork and state.
+
+### Control
+
+Use this mode to check DCEPT itself.
+
+A control uses an intentional difference. It proves that DCEPT can detect the difference. It does not prove protocol compatibility.
+
+## Start with the browser UI
+
+This is the easiest way to use DCEPT.
+
+You need Node.js 24 or later.
 
 ```sh
-cd apps/web
+git clone https://github.com/ayoola-xet/DCEPT.git dcept
+cd dcept/apps/web
 npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. No `.env.local` file is required for the local-run
-page. Load a YAML scenario. Then add two public RPC endpoints.
+Open `http://localhost:3000`.
 
-Browser mode sends requests from the browser. The endpoints must allow CORS.
-It does not send endpoint credentials. Stateless Vercel mode sends requests
-through `/api/public/run`. It accepts public HTTPS endpoints only. It does not
-save run data. It limits each run to 20 actions. It blocks fuzzing, credential
-headers, write RPC methods, and write HTTP methods. Use the local CLI for
-authenticated endpoints, fuzzing, or write tests.
+The local workspace does not need a login, wallet, database, or environment file.
 
-The web workspace detects Engine API probes. It gives you a local CLI command
-instead of sending Engine API credentials through the browser or Vercel. You
-can download the selected YAML scenario and run it with your local JWT headers.
+Complete these steps in the UI:
 
-## Current capabilities
+1. Select a built-in probe or load a YAML scenario.
+2. Select the comparison mode.
+3. Enter the baseline and candidate RPC targets.
+4. Enter matching state fingerprints when you run an upgrade or client comparison.
+5. Enter the scenario inputs.
+6. Select an execution host.
+7. Select **Run differential**.
 
-- Read versioned YAML scenarios.
-- Run any JSON-RPC method, including trace methods and `eth_sendRawTransaction`.
-- Run HTTP checks for downstream tools and services.
-- Use different parameters or request bodies for each target.
-- Compare JSON values by path.
-- Ignore unstable JSON fields.
-- Apply absolute numeric tolerance to JSON numbers and Ethereum hex quantities.
-- Write machine-readable JSON reports.
-- Return exit code `2` when it finds a difference.
-- Run built-in Glamsterdam probes with versioned EIP metadata and typed inputs.
+Use **Browser** when both targets allow Cross-Origin Resource Sharing (CORS). CORS is the browser rule that controls requests to another origin.
 
-## Install
+Use **Vercel route** for public HTTPS read targets that do not allow CORS. This route stores no run data. It does not accept credentials or write requests.
+
+Use the CLI for authenticated Engine API requests, write requests, and fuzz tests.
+
+## Start with the CLI
+
+The CLI is a standalone Rust program. It does not need Node.js or Cloud services.
 
 You need Rust 1.85 or later.
+
+```sh
+git clone https://github.com/ayoola-xet/DCEPT.git dcept
+cd dcept
+cargo build
+```
+
+Run a scenario against two targets.
+
+```sh
+./target/debug/dcept run scenario.yaml \
+  --baseline https://baseline.example/rpc \
+  --candidate https://candidate.example/rpc
+```
+
+Install the `dcept` command if required.
 
 ```sh
 cargo install --path .
 ```
 
-Or build and run directly from a fresh clone:
+Validate a scenario without sending any network request.
+
+```sh
+dcept validate examples/transfer-to-fresh-address.yaml
+```
+
+Save a report to a file.
+
+```sh
+dcept run scenario.yaml \
+  --baseline https://baseline.example/rpc \
+  --candidate https://candidate.example/rpc \
+  --output report.json
+```
+
+The CLI uses these exit codes:
+
+- `0`: The run has no findings.
+- `1`: The command failed.
+- `2`: The run has one or more findings.
+
+## Research real project compatibility
+
+The [Glamsterdam impact ledger](research/glamsterdam-impact-ledger.md) tracks
+current projects that may be affected by the proposed gas changes. It records
+the measured evidence, the matching source path, the severity, and the next
+controlled DCEPT replay.
+
+Treat ledger entries as leads until a replay uses equivalent state under both
+protocol rule sets. Do not describe a Mainnet-versus-testnet result as an
+upgrade differential.
+
+## Run a controlled protocol transition test
+
+This repository includes a controlled Geth lab. The lab starts two local Ethereum nodes.
+
+- The baseline node uses Osaka rules.
+- The candidate node uses Amsterdam rules.
+- Both nodes use the same genesis state.
+
+This test isolates the protocol-rule change from unrelated chain-state changes.
+
+The lab uses Docker to run both nodes with a pinned client build. Docker is only required for this lab. Normal browser and CLI runs do not require Docker.
+
+Start the lab.
 
 ```sh
 cargo build
-./target/debug/glamprobe run scenario.yaml \
-  --baseline https://baseline.example/rpc \
-  --candidate https://candidate.example/rpc
+node scripts/controlled-geth-fork-lab.mjs
 ```
 
-Run `cargo install --path .` when you want to use `glamprobe run` without the `./target/debug/` path.
+The command prints these values:
 
-## Scenario format
+- The baseline RPC URL.
+- The candidate RPC URL.
+- The shared state fingerprint.
 
-Each scenario is a YAML document with `version: 1`, a name, and one or more actions.
+Keep the lab running while you use the browser UI. Press `Ctrl+C` to stop it.
+
+Run the automated check with this command:
+
+```sh
+node scripts/controlled-geth-fork-lab.mjs --verify
+```
+
+Run the recorded EntryPoint v0.7 Level C replay:
+
+```sh
+node scripts/replay-entrypoint-v07.mjs \
+  --output research/entrypoint-v07-replay-report.json
+```
+
+This replay needs an archive RPC that supports `debug_traceTransaction` with
+`prestateTracer`. It uses Docker to run two local Geth nodes.
+
+The recorded Level D check also tests the current Pimlico Alto estimator:
+
+- [`entrypoint-v07-level-d.json`](research/entrypoint-v07-level-d.json) records
+  an unsafe Glamsterdam `verificationGasLimit` result.
+- [`entrypoint-v07-level-d-queue.md`](research/entrypoint-v07-level-d-queue.md)
+  explains the test method and its signature limitation.
+- [`entrypoint-v07-user-operation.json`](research/entrypoint-v07-user-operation.json)
+  contains the complete packed UserOperation used for the estimate.
+
+## Understand a scenario
+
+A scenario is a YAML document. It contains a version, a name, and one or more actions.
+
+This example compares one block response:
 
 ```yaml
 version: 1
 name: latest-block
-description: Compare the latest block response.
+description: Compare one block response.
+
 actions:
   - kind: rpc
     id: latest-block
@@ -87,185 +266,202 @@ actions:
           absolute: 1000
 ```
 
-`kind: rpc` sends a JSON-RPC request. The `method` field can contain any method that the targets support. This includes `eth_call`, `eth_estimateGas`, block and log methods, trace methods, and `eth_sendRawTransaction`.
+The `method` field contains the JSON-RPC method.
 
-Use `baseline_params` or `candidate_params` when an action needs different parameters on one target. This is useful for pre-signed transactions that have a target-specific chain ID or nonce.
+The `params` field contains the method parameters.
 
-`kind: http` sends an HTTP request to a path relative to each target URL. It supports shared and target-specific paths and JSON bodies.
+The `ignore_paths` field removes unstable values from the comparison.
 
-```yaml
-version: 1
-name: indexer-health
-actions:
-  - kind: http
-    id: health
-    method: GET
-    path: /health
-    comparison:
-      ignore_paths:
-        - /body/checkedAt
-```
+The `numeric_tolerances` field permits a defined numeric difference.
 
-Comparison paths use RFC 6901 JSON Pointer syntax. An empty path means the full response.
+Paths use RFC 6901 JSON Pointer syntax. An empty path selects the full response.
 
-## Use the CLI
+## Use built-in Glamsterdam probes
 
-Validate a scenario without contacting a target.
+The built-in probe files live in `probes/glamsterdam/`.
+
+List all probes.
 
 ```sh
-glamprobe validate examples/transfer-to-fresh-address.yaml
+dcept probe list
 ```
 
-Run a scenario.
+Show one probe.
 
 ```sh
-glamprobe run examples/transfer-to-fresh-address.yaml \
+dcept probe show glamsterdam/gas-repricing-estimate
+```
+
+Run one probe.
+
+```sh
+dcept probe run glamsterdam/gas-repricing-estimate \
   --baseline https://baseline.example/rpc \
   --candidate https://candidate.example/rpc \
-  --output report.json
-```
-
-Pass a target header when an endpoint needs authentication.
-
-```sh
-glamprobe run scenario.yaml \
-  --baseline https://baseline.example/rpc \
-  --candidate https://candidate.example/rpc \
-  --baseline-header 'Authorization: Bearer baseline-token' \
-  --candidate-header 'Authorization: Bearer candidate-token'
-```
-
-The CLI prints the report to standard output. It exits with `0` when there are no findings, `2` when it finds differences, and `1` for a command error.
-
-## Glamsterdam probe pack
-
-GlamProbe includes built-in probes for the current Glamsterdam devnet scope.
-They cover the Amsterdam Engine API surface, EIP-7928 block access list
-retrieval and validation, EIP-2780/EIP-7981/EIP-8037/EIP-8038 gas estimates,
-and EIP-7732 Gloas Builder API behavior.
-
-```sh
-glamprobe probe list
-glamprobe probe show glamsterdam/engine-api-surface
-```
-
-Run a built-in probe with the same target options as `glamprobe run`.
-
-```sh
-glamprobe probe run glamsterdam/gas-repricing-estimate \
-  --baseline https://baseline-rpc.example \
-  --candidate https://candidate-rpc.example \
+  --mode upgrade-differential \
+  --baseline-protocol osaka \
+  --candidate-protocol glamsterdam \
+  --baseline-state-fingerprint sha256:STATE \
+  --candidate-state-fingerprint sha256:STATE \
   --var sender=0x0000000000000000000000000000000000000001 \
-  --var recipient=0x0000000000000000000000000000000000000002 \
-  --var block=0x1234
+  --var recipient=0x0000000000000000000000000000000000000002
 ```
 
-Use targets with the same chain state and a post-fork block. Engine API probes
-need a JWT header on each target. See [probes/README.md](probes/README.md) for
-probe requirements and fixture use.
+See [`probes/README.md`](probes/README.md) for probe inputs and fixture requirements.
 
-Use `glamprobe fixture inspect` and `glamprobe fixture new-payload-v5-params`
-to export the `params` array from an official `blockchain_test_engine` fixture
-directive. Pass the JSON file to a probe with `--var-file NAME=PATH`.
+## Reproduce a live faucet compatibility failure
 
-Use `glamprobe fixture run` to deliver every `engine_newPayloadV*` directive
-from one fixture case to both targets. When the fixture includes a final head,
-the command also sends `engine_forkchoiceUpdatedV*` and checks that head through
-`eth_getBlockByNumber`. The command checks the expected Engine API status or
-error code for each target. Start each target with the fixture network, genesis
-header, and pre-state before you run this command.
+The built-in PoW faucet probe checks a live Platåberget target. It compares a
+1-wei transfer to an existing account with the same transfer to a fresh account.
+The faucet configuration recorded for Glamsterdam devnet-6 uses a 100000 gas
+limit. A fresh-account transfer needs about 200000 gas on the target.
+
+Run the probe with the same target URL in control mode:
 
 ```sh
-glamprobe fixture run fixtures.json --case test_name \
-  --baseline http://baseline-engine.example \
-  --candidate http://candidate-engine.example \
-  --baseline-header 'Authorization: Bearer baseline-jwt' \
-  --candidate-header 'Authorization: Bearer candidate-jwt'
+dcept probe run glamsterdam/powfaucet-fresh-account-transfer \
+  --baseline https://rpc.plataberget.ethpandaops.io \
+  --candidate https://rpc.plataberget.ethpandaops.io \
+  --baseline-name existing-recipient \
+  --candidate-name fresh-recipient \
+  --mode control \
+  --control-reason "Reproduce the devnet faucet 100000-gas cap for a fresh-account transfer." \
+  --output powfaucet-plataberget-report.json
 ```
 
-Each probe can include target assertions. Assertions fail when a target misses a
-required protocol capability, even when both target responses are identical.
+Exit code `2` means that the control found the intended difference. The report
+should show about `0x5244` (21060) gas for the existing account and about
+`0x31f38` (204600) gas for the fresh account. The capped `eth_call` should show
+an out-of-gas error for the fresh account. This is a live compatibility
+reproducer. It is not proof of a controlled pre-upgrade versus post-upgrade
+result.
 
-## Fuzzing and minimization
+The original report is tracked in the
+[Glamsterdam devnet issue](https://github.com/ethpandaops/glamsterdam-devnets/issues/46).
+Use the DCEPT JSON report as independent evidence for the current target.
 
-Add a `fuzz` block to vary values inside an RPC action's `params` field. GlamProbe uses a fixed seed, so it creates the same cases again when you use the same seed.
+## Read a report
 
-```yaml
-fuzz:
-  cases: 10
-  seed: 42
-  mutations:
-    - action: estimate-transfer
-      path: /0/value
-      values: ["0x0", "0x1", "0x5208"]
-```
+Each report includes this evidence:
 
-Run the configured cases.
+- The selected comparison mode.
+- The baseline and candidate protocol identities.
+- The client identities when applicable.
+- The state fingerprints.
+- The resolved scenario.
+- The prepared requests.
+- The normalized responses.
+- The exact response differences.
+- The failed assertions.
+- The final conclusion and warnings.
+
+Keep the report with the scenario and target configuration. These records help another user reproduce the result.
+
+## Fuzz and minimize a test
+
+Fuzzing creates deterministic input variations. The same seed creates the same cases.
 
 ```sh
-glamprobe fuzz examples/fuzz-estimate-gas.yaml \
+dcept fuzz examples/fuzz-estimate-gas.yaml \
   --baseline https://baseline.example/rpc \
   --candidate https://candidate.example/rpc
 ```
 
-Use `--cases` and `--seed` to override the YAML values. The fuzz report records every applied mutation.
-
-When a scenario has a finding, reduce it to the smallest action set that still fails.
+Minimization removes actions that are not required to reproduce a finding.
 
 ```sh
-glamprobe minimize scenario.yaml \
+dcept minimize scenario.yaml \
   --baseline https://baseline.example/rpc \
   --candidate https://candidate.example/rpc \
   --output reproducer.yaml
 ```
 
-The minimizer reruns actions. Use fresh, disposable targets when the scenario can change target state.
+The minimizer repeats requests. Use disposable targets when a scenario can change chain state.
 
-## Transaction safety
+## Architecture
 
-GlamProbe does not store private keys and does not sign transactions. It can submit a pre-signed raw transaction when a scenario uses `eth_sendRawTransaction`.
+One Rust core controls DCEPT behavior.
 
-An RPC target can change state when a scenario uses a write method. Use a dedicated test target. Do not give production endpoints to a scenario that sends transactions.
+The Rust core owns these functions:
+
+- Scenario parsing and validation.
+- Request planning.
+- Assertions.
+- Normalization.
+- Comparison.
+- Deterministic fuzzing.
+- Minimization rules.
+- Report generation.
+
+The CLI calls the Rust core directly.
+
+The browser loads the Rust core as WebAssembly. WebAssembly is a portable binary format that can run in a browser. JavaScript sends the requests that Rust plans. Rust evaluates the responses.
+
+DCEPT Cloud also uses the Rust core. Cloud is optional and downstream of the core.
+
+## Optional Cloud features
+
+DCEPT Cloud adds these features:
+
+- Wallet sign-in.
+- Teams.
+- Encrypted targets.
+- Stored scenarios and reports.
+- Durable runs.
+- API tokens.
+- Quotas.
+
+Cloud needs PostgreSQL and these environment values:
+
+- `DATABASE_URL`
+- `ENCRYPTION_KEY`
+- `SESSION_SECRET`
+
+The local browser workspace and CLI do not need these values.
+
+See [`apps/web/DEPLOYMENT.md`](apps/web/DEPLOYMENT.md) for deployment instructions.
+
+## Safety
+
+DCEPT does not store private keys. It does not sign transactions.
+
+A scenario can submit a pre-signed transaction. A scenario can also call another write method.
+
+Review a scenario before you run it. Use an isolated test target for write requests. Do not use an unreviewed scenario with a production endpoint.
+
+Report a possible vulnerability through the private process in
+[`SECURITY.md`](SECURITY.md). Do not open a public issue for a possible
+vulnerability.
 
 ## Development
+
+Run the Rust checks.
 
 ```sh
 cargo fmt --check
 cargo test
+node scripts/verify-comparison-modes.mjs
+node scripts/verify-cross-path-conformance.mjs
 ```
 
-## Optional GlamProbe Cloud
-
-`apps/web` contains the optional hosted dashboard and REST API. It uses the
-standalone Rust core for scenario validation, input resolution, and comparison.
-It uses Sign-In with Ethereum (SIWE) for wallet authentication, Neon PostgreSQL
-for tenant data, and Vercel Workflow for durable runs.
-
-Hosted scenarios also support the same `fuzz` block as the CLI. The workflow records the seed, each mutation, and each case report.
+Run the web checks.
 
 ```sh
 cd apps/web
-cp .env.example .env.local
-# Set DATABASE_URL, ENCRYPTION_KEY, and SESSION_SECRET.
-npm install
-psql "$DATABASE_URL" -f db/schema.sql
+npm run verify:probes
+npm run typecheck
 npm run build
 ```
 
-Run `scripts/build-wasm.sh` when you update the Rust comparison core. The command creates the Cloud Node package at `apps/web/lib/wasm` and the browser package at `apps/web/public/wasm`.
+## Contributing
 
-See [apps/web/DEPLOYMENT.md](apps/web/DEPLOYMENT.md) for the production deployment procedure.
+Contributions are welcome.
 
-## CI and downstream adapters
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before you start. Follow the
+[`CODE_OF_CONDUCT.md`](.github/CODE_OF_CONDUCT.md) in all project spaces.
 
-Use the local GitHub Action from `actions/glamprobe` to run a scenario in a workflow. It writes a JSON report and adds one warning annotation for each difference or target assertion failure. Pass newline-separated `variables` or `variable-files` inputs for typed probe values. Set `command: fuzz` to run the YAML fuzz block. You can also set `cases` and `seed`.
+Use GitHub Issues for defect reports, feature requests, and support questions.
 
-`adapters` contains commands for ethers.js, viem, Foundry, and Hardhat. Use an adapter when you must test the same RPC operation through the downstream tool, not only through raw JSON-RPC.
+## License
 
-## Hosted API tokens and quotas
-
-Organization owners and administrators can create scoped API tokens at `POST /api/v1/tokens`. The token value is returned once. GlamProbe stores only its SHA-256 hash.
-
-New organizations start with a limit of two concurrent runs, 10,000 monthly cases, and 1 GiB of artifact storage. An administrator can change these values in `organization_quotas`.
-
-Hosted target endpoints must use HTTPS. GlamProbe rejects private, loopback, and link-local addresses. Store provider credentials in encrypted target headers, not in endpoint URLs.
+DCEPT uses the [MIT License](LICENSE).

@@ -3,5 +3,13 @@ node_modules
 .next
 .swc
 *.tsbuildinfo
+.DS_Store
+*.log
+coverage
 .env
-.env.local
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.jwt
