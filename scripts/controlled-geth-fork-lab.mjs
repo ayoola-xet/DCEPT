@@ -162,6 +162,7 @@ async function requireDocker() {
 async function initialize(dataDirectory, genesisPath) {
   await execute("docker", [
     "run", "--rm",
+    ...dockerUserArguments(),
     "--entrypoint", "geth",
     "-v", `${dataDirectory}:/data`,
     "-v", `${genesisPath}:/config/genesis.json:ro`,
@@ -173,6 +174,7 @@ async function initialize(dataDirectory, genesisPath) {
 function startGeth(name, dataDirectory, port) {
   const child = spawn("docker", [
     "run", "--rm",
+    ...dockerUserArguments(),
     "--name", name,
     "-p", `${port}:8545`,
     "-v", `${dataDirectory}:/data`,
@@ -200,6 +202,11 @@ function startGeth(name, dataDirectory, port) {
     }
   });
   return child;
+}
+
+function dockerUserArguments() {
+  if (typeof process.getuid !== "function" || typeof process.getgid !== "function") return [];
+  return ["--user", `${process.getuid()}:${process.getgid()}`];
 }
 
 async function waitForRpc(endpoint) {
