@@ -9,6 +9,6 @@
   },
   "dependencies": {
     "ethers": "6.17.0",
-    "viem": "2.56.3"
+    "viem": "2.56.8"
   }
 }
