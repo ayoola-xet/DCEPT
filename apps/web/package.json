@@ -32,7 +32,7 @@
     "siwe": "3.0.0",
     "workflow": "4.8.5",
     "yaml": "2.9.0",
-    "zod": "4.5.4"
+    "zod": "4.6.6"
   },
   "overrides": {
     "@workflow/core": {
